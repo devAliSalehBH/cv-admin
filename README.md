@@ -1,83 +1,75 @@
-# cv-admin
+# Nuxt Minimal Starter
 
-Scaffolded with Vuetify CLI.
+Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
 
-## ❗️ Documentation
+## Setup
 
-- Primary docs: https://vuetifyjs.com/
-- Getting started guide: https://vuetifyjs.com/en/getting-started/installation/
-- Community support: https://community.vuetifyjs.com/
-- Issue tracker: https://issues.vuetifyjs.com/
-
-## 🧱 Stack
-
-- Framework: Nuxt 4
-- UI Library: Vuetify
-- Language: TypeScript
-- Package manager: npm
-
-## 🧭 Start Here
-
-- Main entry: `app/app.vue`
-- Main app component: `app/app.vue`
-- Main styles: `app/assets/styles/`
-- Plugin setup: `app/plugins/`
-
-## 📁 Project Structure
-
-- `app/pages/` — application routes
-- `app/components/` — reusable Vue components
-- `app/assets/` — styles and static assets used in app
-- `app/plugins/` — Nuxt plugins
-- `public/` — static public files
-
-## ✨ Enabled Features
-
-- ESLint
-- Vuetify MCP
-- Pinia
-- Vue I18n
-- Client Hints
-
-## 💿 Install
-
-Use your selected package manager (npm) to install dependencies:
+Make sure to install dependencies:
 
 ```bash
+# npm
 npm install
+
+# pnpm
+pnpm install
+
+# yarn
+yarn install
+
+# bun
+bun install
 ```
 
-## 🚀 Quick Start
+## Development Server
+
+Start the development server on `http://localhost:3000`:
 
 ```bash
-npm install
+# npm
 npm run dev
+
+# pnpm
+pnpm dev
+
+# yarn
+yarn dev
+
+# bun
+bun run dev
 ```
 
-## 🏗️ Build
+## Production
+
+Build the application for production:
 
 ```bash
+# npm
 npm run build
+
+# pnpm
+pnpm build
+
+# yarn
+yarn build
+
+# bun
+bun run build
 ```
 
-## 🧪 Available Scripts
+Locally preview production build:
 
-- `npm run build`
-- `npm run dev`
-- `npm run generate`
-- `npm run preview`
-- `npm run postinstall`
-- `npm run lint`
-- `npm run lint:fix`
-- `npm run mcp`
-- `npm run mcp:revert`
+```bash
+# npm
+npm run preview
 
-## 💪 Support Vuetify Development
+# pnpm
+pnpm preview
 
-This project uses Vuetify - an MIT licensed Open Source project. We are glad to welcome contributors and any support for ongoing development:
+# yarn
+yarn preview
 
-- Contribute to Vuetify and ecosystem projects: https://github.com/vuetifyjs
-- Request enterprise support: https://support.vuetifyjs.com/
-- Sponsor on GitHub: https://github.com/sponsors/vuetifyjs
-- Support on Open Collective: https://opencollective.com/vuetify
-# cv-admin
+# bun
+bun run preview
+```
+
+Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
