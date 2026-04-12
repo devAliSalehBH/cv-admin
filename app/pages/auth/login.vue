@@ -7,6 +7,7 @@ definePageMeta({
 
 const localePath = useLocalePath()
 const { rules } = useValidationRules()
+const globalStore = useGlobalStore()
 
 const showPassword = ref(false)
 const loading = ref(false)
@@ -19,10 +20,42 @@ const form = reactive({
 const login = async () => {
   if (!form.email || !form.password) return
   loading.value = true
-  // Mock login delay
-  await new Promise((resolve) => setTimeout(resolve, 1000))
-  loading.value = false
-  navigateTo(localePath('/'))
+  const formData = new FormData()
+  for (const key in form) {
+    formData.append(key, (form as any)[key])
+  }
+  useApi()
+    .post("auth/login", {}, { formData })
+    .then((res: any) => {
+      globalStore.setAlertData(res)
+      loading.value = false
+      if (res.success) {
+        setTokenValue(res)
+        navigateTo(localePath('/'))
+      }
+    })
+}
+
+const setTokenValue = (res: any) => {
+  const newToken = res.data.token
+  const profile = {
+    email: res.data?.email,
+    name: res.data?.name,
+    permissions: {} as Record<string, boolean>,
+  }
+  if (res.data?.permissions) {
+    for (const group in res.data.permissions) {
+      res.data.permissions[group].forEach((item: any) => {
+        profile.permissions[item.name] = true
+      })
+    }
+  }
+  globalStore.authToken = newToken
+  globalStore.profile = profile
+  useCookie('token').value = newToken
+  useCookie<any>('profile').value = profile
+  refreshCookie('token')
+  refreshCookie('profile')
 }
 
 </script>

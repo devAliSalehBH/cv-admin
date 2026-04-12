@@ -7,6 +7,8 @@ export const useGlobalStore = defineStore("global", {
       message: "",
       success: false,
     },
+    authToken: null as string | null,
+    profile: null as any,
   }),
   actions: {
     setAlertData(res: any = { message: "", success: false }) {

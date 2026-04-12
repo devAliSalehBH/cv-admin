@@ -19,15 +19,25 @@ const form = reactive({
   confirmPassword: ''
 })
 
+const globalStore = useGlobalStore()
+
 const resetPassword = async () => {
   if (!form.password || form.password !== form.confirmPassword) return
   loading.value = true
   
-  // Mock API call
-  await new Promise((resolve) => setTimeout(resolve, 1000))
-  
-  loading.value = false
-  passwordUpdated.value = true
+  const formData = new FormData()
+  formData.append('password', form.password)
+  formData.append('password_confirmation', form.confirmPassword)
+
+  useApi()
+    .post("auth/reset-password", {}, { formData })
+    .then((res: any) => {
+      globalStore.setAlertData(res)
+      loading.value = false
+      if (res.success) {
+        passwordUpdated.value = true
+      }
+    })
 }
 </script>
 

@@ -13,16 +13,25 @@ const email = ref('')
 const emailSent = ref(false)
 const countdown = ref(60)
 
+const globalStore = useGlobalStore()
+
 const submitEmail = async () => {
   if (!email.value) return
   loading.value = true
   
-  // Mock API call
-  await new Promise((resolve) => setTimeout(resolve, 1000))
-  
-  loading.value = false
-  emailSent.value = true
-  startCountdown()
+  const formData = new FormData();
+  formData.append('email', email.value);
+
+  useApi()
+    .post("auth/forget-password", {}, { formData })
+    .then((res: any) => {
+      globalStore.setAlertData(res)
+      loading.value = false
+      if (res.success) {
+        emailSent.value = true
+        startCountdown()
+      }
+    })
 }
 
 const startCountdown = () => {
