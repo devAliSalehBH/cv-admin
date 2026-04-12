@@ -9,10 +9,6 @@ export default defineNuxtConfig({
     head: {
       titleTemplate: "%s - cvbot-admin",
       title: "cvbot-admin",
-      htmlAttrs: {
-        lang: "ar",
-        dir: "rtl",
-      },
       script: [],
       link: [{ rel: "icon", type: "image/png", href: "/icon.svg" }],
     },

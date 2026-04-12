@@ -1,11 +1,11 @@
-import { defineStore } from "pinia";
+import { defineStore } from 'pinia';
 
-export const useGlobalStore = defineStore("global", {
+export const useGlobalStore = defineStore('global', {
   state: () => ({
     showAlert: false,
     alertData: {
-      message: "",
       success: false,
+      message: '',
     },
     authToken: null as string | null,
     profile: null as any,
@@ -18,6 +18,13 @@ export const useGlobalStore = defineStore("global", {
       setTimeout(() => {
         this.showAlert = false;
       }, 4000);
+    },
+    showSuccess(message: string) {
+      this.setAlertData({ success: true, message: message });
+    },
+    showError(message: string) {
+      this.setAlertData({ success: false, message: message });
     }
   },
 });
+

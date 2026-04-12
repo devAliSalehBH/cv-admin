@@ -29,6 +29,10 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "admins": "Admins",
+    "clients": "Clients",
+    "subscriptions": "Subscriptions",
+    "coupons": "Coupons",
     "users": "Users",
     "settings": "Settings",
     "profile": "Profile",
@@ -153,6 +157,125 @@
     "min_seats": "Minimum seats required is 1",
     "max_seats": "Maximum seats allowed is 1000",
     "actions": "Actions"
+  },
+  "admins": {
+    "title": "Admin Management",
+    "description": "Manage admin users and their access permissions.",
+    "search": "Search by name or email...",
+    "addAdmin": "Add Admin",
+    "editAdmin": "Edit Admin Details",
+    "table": {
+      "name": "Name",
+      "addedDate": "Added Date",
+      "email": "Email"
+    },
+    "showing": "Showing {count} of {total} admins",
+    "drawerDesc": "Updating login details will automatically sign admin out. They'll need to log in again using the updated information.",
+    "deleteTitle": "Delete admin account?",
+    "deleteDesc": "This action will permanently remove this admin's access to the dashboard. The admin will no longer be able to log in or manage the system.",
+    "deleteConfirm": "Are you sure you want to continue?",
+    "deleteBtn": "Delete Admin"
+  },
+  "clients": {
+    "title": "Client Management",
+    "description": "Manage client accounts and information.",
+    "search": "Search by name or email...",
+    "addClient": "Add new Client",
+    "editClient": "Edit Clients Details",
+    "drawerDesc": "Update the client's information below. Any changes will be saved immediately and reflected across the platform.",
+    "addDrawerDesc": "Enter the client's basic details to create a new account.",
+    "stats": {
+      "visitors": "Visitors",
+      "registered": "Registered Users",
+      "active": "Active Clients",
+      "unsubscribed": "Non-subscribed Clients"
+    },
+    "table": {
+      "name": "Client Name",
+      "email": "Email"
+    },
+    "showing": "Showing {count} of {total} clients",
+    "deleteTitle": "Delete Client account?",
+    "deleteDesc": "This action will permanently remove this Client's access to the dashboard. The Client will no longer be able to log in or manage their CV Bot.",
+    "deleteConfirm": "Are you sure you want to continue?",
+    "deleteBtn": "Delete Client"
+  },
+  "subscriptions": {
+    "title": "Subscription Management",
+    "description": "View and manage client subscriptions.",
+    "search": "Search by name or email...",
+    "addSubscription": "Create new Subscription",
+    "addDrawerDesc": "Enter the client's basic details to create a new account.",
+    "stats": {
+      "total": "Total Subscriptions",
+      "active": "Active Subscriptions",
+      "mrr": "Monthly Recurring Revenue (MRR)",
+      "canceled": "Canceled Subscriptions"
+    },
+    "table": {
+      "clientName": "Client Name",
+      "subType": "Sub Type",
+      "startDate": "Start Date",
+      "paymentCycle": "Payment Cycle",
+      "status": "Status"
+    },
+    "showing": "Showing {count} of {total} subscriptions",
+    "form": {
+      "beneficiary": "Beneficiary Client",
+      "selectClient": "Select Client",
+      "plan": "Plan",
+      "selectPlan": "Select Subscription Plan",
+      "startDate": "Starting Date"
+    },
+    "actions": {
+      "continueToPayment": "Continue to Payment",
+      "renewNow": "Renew Now"
+    },
+    "renewModal": {
+      "title": "Renew this Monthly Subscription?",
+      "desc": "Renewing this subscription will extend it for another month and keep the client's access active."
+    }
+  },
+  "coupons": {
+    "title": "Coupon Management",
+    "description": "Create and manage discount coupons.",
+    "search": "Search by name or email...",
+    "addCoupon": "Create new Coupon",
+    "editCoupon": "Edit Coupon",
+    "addDrawerDesc": "The coupon will be activated automatically once created.",
+    "editDrawerDesc": "Update the coupon's settings below.",
+    "table": {
+      "code": "Code",
+      "type": "Type",
+      "expiryDate": "Expiry Date",
+      "usageLimit": "Usage Limit",
+      "status": "Status"
+    },
+    "showing": "Showing {count} of {total} coupons",
+    "form": {
+      "code": "Code",
+      "enterCode": "Enter coupon code",
+      "expireDate": "Expire Date",
+      "expireDefault": "Expiry date is N/A by default. Select a date to set an expiration.",
+      "discountType": "Type of discount",
+      "selectType": "Select coupon's discount type"
+    },
+    "actions": {
+      "activate": "Activate Coupon",
+      "deactivate": "Deactivate Coupon",
+      "delete": "Delete Coupon"
+    },
+    "activateModal": {
+      "title": "Activate {code} coupon?",
+      "desc": "This coupon will become active and can be used immediately."
+    },
+    "deactivateModal": {
+      "title": "Deactivate {code} coupon?",
+      "desc": "This coupon will no longer be valid or usable once deactivated."
+    },
+    "deleteModal": {
+      "title": "Delete {code} coupon?",
+      "desc": "Are you sure you want to delete this coupon? This action cannot be undone."
+    }
   }
 }
-
