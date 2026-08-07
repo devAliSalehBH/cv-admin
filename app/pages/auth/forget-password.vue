@@ -23,7 +23,7 @@ const submitEmail = async () => {
   formData.append('email', email.value);
 
   useApi()
-    .post("auth/forget-password", {}, { formData })
+    .post("admins/auth/forget-password", {}, { formData })
     .then((res: any) => {
       globalStore.setAlertData(res)
       loading.value = false
@@ -121,7 +121,7 @@ const startCountdown = () => {
             height="44"
             class="rounded-lg text-body-2 font-weight-medium text-none px-6"
             elevation="0"
-            :to="localePath('/auth/reset-password')"
+            :to="localePath('/auth/login')"
           >
             {{ $t('auth.returnToLogin') }}
           </v-btn>

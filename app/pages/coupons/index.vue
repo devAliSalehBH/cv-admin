@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useGlobalStore } from '~/stores/global';
 import { useI18n } from 'vue-i18n';
 
@@ -10,6 +10,8 @@ const search = ref('');
 const isDrawerOpen = ref(false);
 const isEditing = ref(false);
 const isDatePickerOpen = ref(false);
+const loading = ref(false);
+const tableLoading = ref(true);
 
 const actionModalState = ref({
   isOpen: false,
@@ -20,18 +22,16 @@ const selectedCoupon = ref(null);
 
 const form = ref({
   code: '',
-  expireDate: '',
+  expireDate: '', // display format DD/MM/YY
+  apiExpireDate: '', // format Y-m-d
   discountType: null,
+  value: '',
+  usageLimit: '',
 });
 
 const discountTypes = ['Percentage (%)', 'Fixed Amount (SAR)'];
 
-const coupons = ref([
-  { id: 1, code: 'SUMMER2024', type: '10 SAR', expiryDate: 'N/A', usageLimit: '12/1000', status: 'Active' },
-  { id: 2, code: 'WELCOME50', type: '20%', expiryDate: 'Jan 15, 2025', usageLimit: 'N/A', status: 'Active' },
-  { id: 3, code: 'NEWYEAR2024', type: '20%', expiryDate: 'Jan 15, 2025', usageLimit: '12/1000', status: 'Inactive' },
-  { id: 4, code: 'FLASH10', type: '10 SAR', expiryDate: 'N/A', usageLimit: '500/500', status: 'Ended' },
-]);
+const coupons = ref([]);
 
 const headers = computed(() => [
   { title: t('coupons.table.code'), key: 'code', sortable: false, align: 'start' },
@@ -43,16 +43,16 @@ const headers = computed(() => [
 ]);
 
 const getStatusColor = (status) => {
-  if (status === 'Active') return '#ECFDF3'; 
-  if (status === 'Inactive') return '#FEF3F2'; 
-  if (status === 'Ended') return '#F2F4F7'; 
+  if (status === 'active') return '#ECFDF3'; 
+  if (status === 'inactive') return '#FEF3F2'; 
+  if (status === 'ended') return '#F2F4F7'; 
   return '#F2F4F7';
 };
 
 const getStatusTextColor = (status) => {
-  if (status === 'Active') return '#027A48'; 
-  if (status === 'Inactive') return '#B42318'; 
-  if (status === 'Ended') return '#344054'; 
+  if (status === 'active') return '#027A48'; 
+  if (status === 'inactive') return '#B42318'; 
+  if (status === 'ended') return '#344054'; 
   return '#344054';
 };
 
@@ -61,6 +61,32 @@ const copyCode = (code) => {
   globalStore.showSuccess('Coupon code copied to clipboard');
 };
 
+const fetchCoupons = async () => {
+  tableLoading.value = true;
+  const res = await useApi().get("admins/manage-coupons", { search: search.value });
+  if (res.success) {
+    // API returns expiry_date, usage_limit, status as formatted strings in the list
+    coupons.value = res.data.data.map(c => ({
+      ...c,
+      expiryDate: c.expiry_date,
+      usageLimit: c.usage_limit,
+    }));
+  }
+  tableLoading.value = false;
+};
+
+onMounted(() => {
+  fetchCoupons();
+});
+
+let searchTimeout = null;
+watch(search, () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    fetchCoupons();
+  }, 1000);
+});
+
 const openDrawer = (coupon = null) => {
   if (coupon) {
     isEditing.value = true;
@@ -68,12 +94,34 @@ const openDrawer = (coupon = null) => {
     form.value = {
       code: coupon.code,
       expireDate: coupon.expiryDate !== 'N/A' ? coupon.expiryDate : '',
-      discountType: coupon.type.includes('%') ? 'Percentage (%)' : 'Fixed Amount (SAR)',
+      apiExpireDate: '', // Will fetch detailed if needed, but let's just use what's shown or fetch full details
+      discountType: null,
+      value: '',
+      usageLimit: '',
     };
+    
+    // Fetch detailed info
+    useApi().get(`admins/manage-coupons/${coupon.id}`).then((res) => {
+      if (res.success) {
+        form.value.code = res.data.code;
+        form.value.discountType = res.data.type === 'percentage' ? 'Percentage (%)' : 'Fixed Amount (SAR)';
+        form.value.value = res.data.value;
+        form.value.usageLimit = res.data.usage_limit;
+        if (res.data.expiry_date) {
+          const date = new Date(res.data.expiry_date);
+          const d = date.getDate().toString().padStart(2, '0');
+          const m = (date.getMonth() + 1).toString().padStart(2, '0');
+          const y = date.getFullYear().toString().slice(-2);
+          form.value.expireDate = `${d}/${m}/${y}`;
+          form.value.apiExpireDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+        }
+      }
+    });
+
   } else {
     isEditing.value = false;
     selectedCoupon.value = null;
-    form.value = { code: '', expireDate: '', discountType: null };
+    form.value = { code: '', expireDate: '', apiExpireDate: '', discountType: null, value: '', usageLimit: '' };
   }
   isDrawerOpen.value = true;
 };
@@ -85,11 +133,13 @@ const updateDate = (val) => {
   const m = (date.getMonth() + 1).toString().padStart(2, '0');
   const y = date.getFullYear().toString().slice(-2);
   form.value.expireDate = `${d}/${m}/${y}`;
+  form.value.apiExpireDate = `${date.getFullYear()}-${m}-${d}`;
   isDatePickerOpen.value = false;
 };
 
 const clearDate = () => {
   form.value.expireDate = '';
+  form.value.apiExpireDate = '';
 };
 
 const openActionModal = (coupon, type) => {
@@ -97,23 +147,67 @@ const openActionModal = (coupon, type) => {
   actionModalState.value = { isOpen: true, type };
 };
 
-const confirmAction = () => {
-  actionModalState.value.isOpen = false;
+const confirmAction = async () => {
+  loading.value = true;
+  let res;
+  
   if (actionModalState.value.type === 'activate') {
-    globalStore.showSuccess('Coupon activated successfully');
+    const formData = new FormData();
+    formData.append('_method', 'patch');
+    res = await useApi().post(`admins/manage-coupons/${selectedCoupon.value.id}/activate`, {}, { formData });
   } else if (actionModalState.value.type === 'deactivate') {
-    globalStore.showSuccess('Coupon deactivated successfully');
+    const formData = new FormData();
+    formData.append('_method', 'patch');
+    res = await useApi().post(`admins/manage-coupons/${selectedCoupon.value.id}/deactivate`, {}, { formData });
   } else if (actionModalState.value.type === 'delete') {
-    globalStore.showSuccess('Coupon deleted successfully');
+    res = await useApi().delete(`admins/manage-coupons/${selectedCoupon.value.id}`);
+  }
+
+  globalStore.setAlertData(res);
+  loading.value = false;
+  
+  if (res.success) {
+    actionModalState.value.isOpen = false;
+    fetchCoupons();
   }
 };
 
-const saveCoupon = () => {
-  isDrawerOpen.value = false;
+const saveCoupon = async () => {
+  loading.value = true;
+  
+  const payload = {
+    code: form.value.code,
+    type: form.value.discountType === 'Percentage (%)' ? 'percentage' : 'amount',
+    value: form.value.value,
+  };
+
+  if (form.value.apiExpireDate) {
+    payload.expiry_date = form.value.apiExpireDate;
+  }
+  
+  if (form.value.usageLimit) {
+    payload.usage_limit = form.value.usageLimit;
+  }
+
+  const formData = new FormData();
+  for (const key in payload) {
+    formData.append(key, payload[key]);
+  }
+
+  let res;
   if (isEditing.value) {
-    globalStore.showSuccess('Coupon updated successfully');
+    formData.append('_method', 'patch');
+    res = await useApi().post(`admins/manage-coupons/${selectedCoupon.value.id}`, {}, { formData });
   } else {
-    globalStore.showSuccess('Coupon created successfully');
+    res = await useApi().post("admins/manage-coupons", {}, { formData });
+  }
+
+  globalStore.setAlertData(res);
+  loading.value = false;
+  
+  if (res.success) {
+    isDrawerOpen.value = false;
+    fetchCoupons();
   }
 };
 </script>
@@ -152,6 +246,7 @@ const saveCoupon = () => {
       <v-data-table
         :headers="headers"
         :items="coupons"
+        :loading="tableLoading"
         class="custom-table"
         hide-default-footer
       >
@@ -173,22 +268,22 @@ const saveCoupon = () => {
           <span style="color: #64748B">{{ item.usageLimit }}</span>
         </template>
         <template v-slot:item.status="{ item }">
-          <v-chip size="small" :style="{ backgroundColor: getStatusColor(item.status) + ' !important', color: getStatusTextColor(item.status) + ' !important' }" class="font-weight-medium px-3" border="0" variant="flat">
+          <v-chip size="small" :style="{ backgroundColor: getStatusColor(item.status) + ' !important', color: getStatusTextColor(item.status) + ' !important' }" class="font-weight-medium px-3 text-capitalize" border="0" variant="flat">
             {{ item.status }}
           </v-chip>
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex justify-end align-center pr-4">
-            <v-btn v-if="item.status !== 'Ended'" icon variant="text" size="small" class="mx-1" @click="openDrawer(item)">
+            <v-btn v-if="item.status !== 'ended'" icon variant="text" size="small" class="mx-1" @click="openDrawer(item)">
               <v-icon color="#64748B" size="20">mdi-square-edit-outline</v-icon>
             </v-btn>
-            <v-btn v-if="item.status === 'Active'" icon variant="text" size="small" @click="openActionModal(item, 'deactivate')">
+            <v-btn v-if="item.status === 'active'" icon variant="text" size="small" @click="openActionModal(item, 'deactivate')">
               <v-icon color="#F04438" size="20">mdi-stop-circle-outline</v-icon>
             </v-btn>
-            <v-btn v-if="item.status === 'Inactive'" icon variant="text" size="small" @click="openActionModal(item, 'activate')">
+            <v-btn v-if="item.status === 'inactive'" icon variant="text" size="small" @click="openActionModal(item, 'activate')">
               <v-icon color="#12B76A" size="20">mdi-play-circle-outline</v-icon>
             </v-btn>
-            <v-btn v-if="item.status === 'Ended'" icon variant="text" size="small" class="ms-1" @click="openActionModal(item, 'delete')">
+            <v-btn v-if="item.status === 'ended'" icon variant="text" size="small" class="ms-1" @click="openActionModal(item, 'delete')">
               <v-icon color="#F04438" size="20">mdi-trash-can-outline</v-icon>
             </v-btn>
           </div>
@@ -252,11 +347,21 @@ const saveCoupon = () => {
           <div class="form-label mb-2">{{ $t('coupons.form.discountType') }}</div>
           <v-select v-model="form.discountType" :items="discountTypes" :placeholder="$t('coupons.form.selectType')" variant="outlined" density="compact" class="custom-input" hide-details></v-select>
         </div>
+
+        <div class="mb-4">
+          <div class="form-label mb-2">Value / Amount<span style="color: #F04438">*</span></div>
+          <v-text-field v-model="form.value" type="number" placeholder="Enter amount or percentage" variant="outlined" density="compact" class="custom-input" hide-details></v-text-field>
+        </div>
+
+        <div class="mb-4">
+          <div class="form-label mb-2">Usage Limit</div>
+          <v-text-field v-model="form.usageLimit" type="number" placeholder="Limit (Optional)" variant="outlined" density="compact" class="custom-input" hide-details></v-text-field>
+        </div>
       </div>
 
       <div class="drawer-footer d-flex px-6 pt-8 gap-3" style="margin-top: auto; position: absolute; bottom: 24px; width: 100%;">
         <v-btn variant="outlined" class="drawer-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isDrawerOpen = false">{{ $t('common.cancel') }}</v-btn>
-        <v-btn class="drawer-action-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="saveCoupon">
+        <v-btn class="drawer-action-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :loading="loading" @click="saveCoupon">
           {{ isEditing ? $t('common.save') : $t('coupons.addCoupon') }}
         </v-btn>
       </div>
@@ -273,7 +378,7 @@ const saveCoupon = () => {
           <p class="action-modal-desc mb-8">{{ $t(`coupons.${actionModalState.type}Modal.desc`) }}</p>
           <div class="d-flex justify-center gap-3 w-100 mt-6">
             <v-btn variant="outlined" class="action-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="actionModalState.isOpen = false">{{ $t('common.cancel') }}</v-btn>
-            <v-btn class="action-confirm-btn text-none flex-grow-1" :prepend-icon="actionModalState.type === 'activate' ? 'mdi-play-circle-outline' : (actionModalState.type === 'deactivate' ? 'mdi-stop-circle-outline' : '')" height="60" style="flex-basis: 0;" elevation="0" @click="confirmAction">
+            <v-btn class="action-confirm-btn text-none flex-grow-1" :prepend-icon="actionModalState.type === 'activate' ? 'mdi-play-circle-outline' : (actionModalState.type === 'deactivate' ? 'mdi-stop-circle-outline' : '')" height="60" style="flex-basis: 0;" elevation="0" :loading="loading" @click="confirmAction">
               {{ $t(`coupons.actions.${actionModalState.type}`) }}
             </v-btn>
           </div>

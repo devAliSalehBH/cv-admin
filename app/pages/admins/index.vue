@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useGlobalStore } from '~/stores/global';
 
 const globalStore = useGlobalStore();
@@ -11,6 +11,8 @@ const isDeleteModalOpen = ref(false);
 const isEditing = ref(false);
 const selectedAdmin = ref(null);
 const showPassword = ref(false);
+const loading = ref(false);
+const tableLoading = ref(true);
 
 const form = ref({
   first_name: '',
@@ -19,19 +21,35 @@ const form = ref({
   password: '',
 });
 
-const admins = ref([
-  { id: 1, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', date: 'Jan 15, 2024', email: 'mohamed@cvbot.app' },
-  { id: 2, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', date: 'Jan 15, 2024', email: 'mohamed@cvbot.app' },
-  { id: 3, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', date: 'Jan 15, 2024', email: 'mohamed@cvbot.app' },
-  { id: 4, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', date: 'Jan 15, 2024', email: 'mohamed@cvbot.app' },
-]);
+const admins = ref([]);
 
 const headers = computed(() => [
   { title: t('admins.table.name'), key: 'name', sortable: false, align: 'start' },
-  { title: t('admins.table.addedDate'), key: 'date', sortable: false, align: 'start' },
+  { title: t('admins.table.addedDate'), key: 'created_at', sortable: false, align: 'start' },
   { title: t('admins.table.email'), key: 'email', sortable: false, align: 'start' },
   { title: t('common.actions'), key: 'actions', sortable: false, align: 'end' },
 ]);
+
+const fetchAdmins = async () => {
+  tableLoading.value = true;
+  const res = await useApi().get("admins/manage-admins", { search: search.value });
+  if (res.success) {
+    admins.value = res.data.data;
+  }
+  tableLoading.value = false;
+};
+
+onMounted(() => {
+  fetchAdmins();
+});
+
+let searchTimeout = null;
+watch(search, () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    fetchAdmins();
+  }, 1000);
+});
 
 const openDrawer = (admin = null) => {
   showPassword.value = false;
@@ -39,11 +57,18 @@ const openDrawer = (admin = null) => {
     isEditing.value = true;
     selectedAdmin.value = admin;
     form.value = {
-      first_name: admin.first_name,
-      last_name: admin.last_name,
+      first_name: admin.name ? admin.name.split(' ')[0] : '', // Assuming name is full_name, we extract first name for fallback
+      last_name: admin.name ? admin.name.split(' ').slice(1).join(' ') : '',
       email: admin.email,
-      password: '••••••••',
+      password: '',
     };
+    // Fetch details to get first and last name properly
+    useApi().get(`admins/manage-admins/${admin.id}`).then((res) => {
+      if(res.success) {
+        form.value.first_name = res.data.first_name;
+        form.value.last_name = res.data.last_name;
+      }
+    });
   } else {
     isEditing.value = false;
     selectedAdmin.value = null;
@@ -52,12 +77,40 @@ const openDrawer = (admin = null) => {
   isAddEditDrawerOpen.value = true;
 };
 
-const saveAdmin = () => {
-  isAddEditDrawerOpen.value = false;
+const saveAdmin = async () => {
+  loading.value = true;
+  
+  const payload = {
+    first_name: form.value.first_name,
+    last_name: form.value.last_name,
+    email: form.value.email,
+  };
+
+  // Only include password if it's set
+  if (form.value.password) {
+    payload.password = form.value.password;
+    payload.password_confirmation = form.value.password;
+  }
+
+  const formData = new FormData();
+  for (const key in payload) {
+    formData.append(key, payload[key]);
+  }
+
+  let res;
   if (isEditing.value) {
-    globalStore.showSuccess('Admin details have been updated successfully');
+    formData.append('_method', 'patch');
+    res = await useApi().post(`admins/manage-admins/${selectedAdmin.value.id}`, {}, { formData });
   } else {
-    globalStore.showSuccess('New admin has been added Successfully');
+    res = await useApi().post("admins/manage-admins", {}, { formData });
+  }
+
+  globalStore.setAlertData(res);
+  loading.value = false;
+  
+  if (res.success) {
+    isAddEditDrawerOpen.value = false;
+    fetchAdmins();
   }
 };
 
@@ -66,14 +119,27 @@ const confirmDelete = (admin) => {
   isDeleteModalOpen.value = true;
 };
 
-const deleteAdmin = () => {
-  isDeleteModalOpen.value = false;
-  globalStore.showSuccess('Admin has been deleted Successfully');
+const deleteAdmin = async () => {
+  loading.value = true;
+  const res = await useApi().delete(`admins/manage-admins/${selectedAdmin.value.id}`);
+  globalStore.setAlertData(res);
+  loading.value = false;
+  
+  if (res.success) {
+    isDeleteModalOpen.value = false;
+    fetchAdmins();
+  }
 };
 </script>
 
 <template>
   <div>
+    <!-- Autofill trap to stop Chrome from aggressively autofilling the search bar -->
+    <div style="opacity: 0; position: absolute; height: 0; width: 0; z-index: -1; overflow: hidden;">
+      <input type="text" name="fake_email_trap" tabindex="-1" autocomplete="username" />
+      <input type="password" name="fake_password_trap" tabindex="-1" autocomplete="current-password" />
+    </div>
+
     <!-- Header -->
     <div class="mb-8">
       <h1 class="page-title">{{ $t('admins.title') }}</h1>
@@ -90,6 +156,8 @@ const deleteAdmin = () => {
           density="compact"
           prepend-inner-icon="mdi-magnify"
           hide-details
+          autocomplete="new-password"
+          name="search_nope_admin"
           class="search-field flex-grow-1 me-4"
         ></v-text-field>
         <v-btn variant="outlined" class="filter-btn text-none" height="44" prepend-icon="mdi-filter-variant" elevation="0">
@@ -106,6 +174,7 @@ const deleteAdmin = () => {
       <v-data-table
         :headers="headers"
         :items="admins"
+        :loading="tableLoading"
         class="custom-table"
         hide-default-footer
       >
@@ -168,7 +237,7 @@ const deleteAdmin = () => {
 
       <div class="drawer-footer d-flex px-6 pt-8 gap-3" style="margin-top: auto; position: absolute; bottom: 24px; width: 100%;">
         <v-btn variant="outlined" class="drawer-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isAddEditDrawerOpen = false">{{ $t('common.cancel') }}</v-btn>
-        <v-btn class="drawer-action-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :prepend-icon="isEditing ? 'mdi-content-save' : 'mdi-plus'" @click="saveAdmin">
+        <v-btn class="drawer-action-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :prepend-icon="isEditing ? 'mdi-content-save' : 'mdi-plus'" :loading="loading" @click="saveAdmin">
           {{ isEditing ? $t('common.save') : $t('admins.addAdmin') }}
         </v-btn>
       </div>
@@ -185,7 +254,7 @@ const deleteAdmin = () => {
           <p class="delete-modal-desc mb-8">{{ $t('admins.deleteDesc') }}<br><br>{{ $t('admins.deleteConfirm') }}</p>
           <div class="d-flex justify-center gap-3 w-100 mt-6">
             <v-btn variant="outlined" class="delete-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isDeleteModalOpen = false">{{ $t('common.cancel') }}</v-btn>
-            <v-btn class="delete-confirm-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="deleteAdmin">{{ $t('admins.deleteBtn') }}</v-btn>
+            <v-btn class="delete-confirm-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :loading="loading" @click="deleteAdmin">{{ $t('admins.deleteBtn') }}</v-btn>
           </div>
         </v-card-text>
       </v-card>

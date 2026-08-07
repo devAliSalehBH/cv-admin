@@ -1,3 +1,8 @@
+<script setup>
+const localePath = useLocalePath();
+await navigateTo(localePath('/admins'));
+</script>
+
 <template>
-  <div>Home</div>
+  <div>Redirecting...</div>
 </template>

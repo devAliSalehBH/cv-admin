@@ -25,7 +25,7 @@ const login = async () => {
     formData.append(key, (form as any)[key])
   }
   useApi()
-    .post("auth/login", {}, { formData })
+    .post("admins/auth/login", {}, { formData })
     .then((res: any) => {
       globalStore.setAlertData(res)
       loading.value = false

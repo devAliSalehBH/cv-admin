@@ -30,7 +30,7 @@ const resetPassword = async () => {
   formData.append('password_confirmation', form.confirmPassword)
 
   useApi()
-    .post("auth/reset-password", {}, { formData })
+    .post("admins/auth/reset-password", {}, { formData })
     .then((res: any) => {
       globalStore.setAlertData(res)
       loading.value = false

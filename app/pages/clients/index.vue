@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useGlobalStore } from '~/stores/global';
 
 const globalStore = useGlobalStore();
@@ -11,6 +11,8 @@ const isDeleteModalOpen = ref(false);
 const isEditing = ref(false);
 const selectedClient = ref(null);
 const showPassword = ref(false);
+const loading = ref(false);
+const tableLoading = ref(true);
 
 const form = ref({
   first_name: '',
@@ -20,12 +22,7 @@ const form = ref({
   password: '',
 });
 
-const clients = ref([
-  { id: 1, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', email: 'mohamed@cvbot.app' },
-  { id: 2, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', email: 'mohamed@cvbot.app' },
-  { id: 3, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', email: 'mohamed@cvbot.app' },
-  { id: 4, name: 'Mohamed Ahmed', first_name: 'Mohamed', last_name: 'Ahmed', email: 'mohamed@cvbot.app' },
-]);
+const clients = ref([]);
 
 const headers = computed(() => [
   { title: t('clients.table.name'), key: 'name', sortable: false, align: 'start' },
@@ -33,18 +30,46 @@ const headers = computed(() => [
   { title: t('common.actions'), key: 'actions', sortable: false, align: 'end' },
 ]);
 
+const fetchClients = async () => {
+  tableLoading.value = true;
+  const res = await useApi().get("admins/manage-users", { search: search.value });
+  if (res.success) {
+    clients.value = res.data.data;
+  }
+  tableLoading.value = false;
+};
+
+onMounted(() => {
+  fetchClients();
+});
+
+let searchTimeout = null;
+watch(search, () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    fetchClients();
+  }, 1000);
+});
+
 const openDrawer = (client = null) => {
   showPassword.value = false;
   if (client) {
     isEditing.value = true;
     selectedClient.value = client;
     form.value = {
-      first_name: client.first_name,
-      last_name: client.last_name,
+      first_name: client.name ? client.name.split(' ')[0] : '', 
+      last_name: client.name ? client.name.split(' ').slice(1).join(' ') : '',
       email: client.email,
-      phone: '', // Placeholder handles it for mockup
-      password: '••••••••',
+      phone: '',
+      password: '',
     };
+    useApi().get(`admins/manage-users/${client.id}`).then((res) => {
+      if(res.success) {
+        form.value.first_name = res.data.first_name;
+        form.value.last_name = res.data.last_name;
+        form.value.phone = res.data.phone;
+      }
+    });
   } else {
     isEditing.value = false;
     selectedClient.value = null;
@@ -53,12 +78,46 @@ const openDrawer = (client = null) => {
   isAddEditDrawerOpen.value = true;
 };
 
-const saveClient = () => {
-  isAddEditDrawerOpen.value = false;
+const saveClient = async () => {
+  loading.value = true;
+  
+  const payload = {
+    first_name: form.value.first_name,
+    last_name: form.value.last_name,
+    email: form.value.email,
+    phone: form.value.phone,
+  };
+
+  // Only include password if it's set
+  if (form.value.password) {
+    payload.password = form.value.password;
+    payload.password_confirmation = form.value.password;
+  }
+  
+  // Include required field for creation or update if needed
+  if (!isEditing.value) {
+    payload.phone_country = 'SA'; // Default as required by API
+  }
+
+  const formData = new FormData();
+  for (const key in payload) {
+    formData.append(key, payload[key]);
+  }
+
+  let res;
   if (isEditing.value) {
-    globalStore.showSuccess('Client details have been updated successfully');
+    formData.append('_method', 'patch');
+    res = await useApi().post(`admins/manage-users/${selectedClient.value.id}`, {}, { formData });
   } else {
-    globalStore.showSuccess('New client has been added Successfully');
+    res = await useApi().post("admins/manage-users", {}, { formData });
+  }
+
+  globalStore.setAlertData(res);
+  loading.value = false;
+  
+  if (res.success) {
+    isAddEditDrawerOpen.value = false;
+    fetchClients();
   }
 };
 
@@ -67,14 +126,27 @@ const confirmDelete = (client) => {
   isDeleteModalOpen.value = true;
 };
 
-const deleteClient = () => {
-  isDeleteModalOpen.value = false;
-  globalStore.showSuccess('Client has been deleted Successfully');
+const deleteClient = async () => {
+  loading.value = true;
+  const res = await useApi().delete(`admins/manage-users/${selectedClient.value.id}`);
+  globalStore.setAlertData(res);
+  loading.value = false;
+  
+  if (res.success) {
+    isDeleteModalOpen.value = false;
+    fetchClients();
+  }
 };
 </script>
 
 <template>
   <div>
+    <!-- Autofill trap to stop Chrome from aggressively autofilling the search bar -->
+    <div style="opacity: 0; position: absolute; height: 0; width: 0; z-index: -1; overflow: hidden;">
+      <input type="text" name="fake_email_trap" tabindex="-1" autocomplete="username" />
+      <input type="password" name="fake_password_trap" tabindex="-1" autocomplete="current-password" />
+    </div>
+
     <!-- Header -->
     <div class="mb-6">
       <h1 class="page-title">{{ $t('clients.title') }}</h1>
@@ -132,6 +204,8 @@ const deleteClient = () => {
           density="compact"
           prepend-inner-icon="mdi-magnify"
           hide-details
+          autocomplete="new-password"
+          name="search_nope_client"
           class="search-field flex-grow-1 me-4"
         ></v-text-field>
         <v-btn variant="outlined" class="filter-btn text-none" height="44" prepend-icon="mdi-filter-variant" elevation="0">
@@ -148,6 +222,7 @@ const deleteClient = () => {
       <v-data-table
         :headers="headers"
         :items="clients"
+        :loading="tableLoading"
         class="custom-table"
         hide-default-footer
       >
@@ -215,7 +290,7 @@ const deleteClient = () => {
 
       <div class="drawer-footer d-flex px-6 pt-8 gap-3" style="margin-top: auto; position: absolute; bottom: 24px; width: 100%;">
         <v-btn variant="outlined" class="drawer-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isAddEditDrawerOpen = false">{{ $t('common.cancel') }}</v-btn>
-        <v-btn class="drawer-action-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :prepend-icon="isEditing ? 'mdi-content-save' : 'mdi-plus'" @click="saveClient">
+        <v-btn class="drawer-action-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :prepend-icon="isEditing ? 'mdi-content-save' : 'mdi-plus'" :loading="loading" @click="saveClient">
           {{ isEditing ? $t('common.save') : $t('clients.addClient') }}
         </v-btn>
       </div>
@@ -232,7 +307,7 @@ const deleteClient = () => {
           <p class="delete-modal-desc mb-8">{{ $t('clients.deleteDesc') }}<br><br>{{ $t('clients.deleteConfirm') }}</p>
           <div class="d-flex justify-center gap-3 w-100 mt-6">
             <v-btn variant="outlined" class="delete-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isDeleteModalOpen = false">{{ $t('common.cancel') }}</v-btn>
-            <v-btn class="delete-confirm-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="deleteClient">{{ $t('clients.deleteBtn') }}</v-btn>
+            <v-btn class="delete-confirm-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :loading="loading" @click="deleteClient">{{ $t('clients.deleteBtn') }}</v-btn>
           </div>
         </v-card-text>
       </v-card>
