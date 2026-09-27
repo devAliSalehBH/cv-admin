@@ -1,11 +1,16 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useGlobalStore } from '~/stores/global';
 
 const globalStore = useGlobalStore();
 const { t } = useI18n();
 
-const search = ref('');
+const filters = reactive({
+  page: 1,
+  per_page: 10,
+  search: '',
+});
+
 const isAddEditDrawerOpen = ref(false);
 const isDeleteModalOpen = ref(false);
 const isEditing = ref(false);
@@ -13,6 +18,13 @@ const selectedAdmin = ref(null);
 const showPassword = ref(false);
 const loading = ref(false);
 const tableLoading = ref(true);
+
+const tableMeta = ref({
+  total: 0,
+  last_page: 1,
+  from: 0,
+  to: 0,
+});
 
 const form = ref({
   first_name: '',
@@ -32,9 +44,15 @@ const headers = computed(() => [
 
 const fetchAdmins = async () => {
   tableLoading.value = true;
-  const res = await useApi().get("admins/manage-admins", { search: search.value });
+  const res = await useApi().get("admins/manage-admins", filters);
   if (res.success) {
     admins.value = res.data.data;
+    tableMeta.value = {
+      total: res.data.total || 0,
+      last_page: res.data.last_page || 1,
+      from: res.data.from || 0,
+      to: res.data.to || 0,
+    };
   }
   tableLoading.value = false;
 };
@@ -44,11 +62,21 @@ onMounted(() => {
 });
 
 let searchTimeout = null;
-watch(search, () => {
+watch(() => filters.search, () => {
   if (searchTimeout) clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
+    filters.page = 1;
     fetchAdmins();
   }, 1000);
+});
+
+watch(() => filters.page, () => {
+  fetchAdmins();
+});
+
+watch(() => filters.per_page, () => {
+  filters.page = 1;
+  fetchAdmins();
 });
 
 const openDrawer = (admin = null) => {
@@ -150,7 +178,7 @@ const deleteAdmin = async () => {
     <div class="d-flex justify-space-between align-center mb-6">
       <div class="d-flex align-center w-50">
         <v-text-field
-          v-model="search"
+          v-model="filters.search"
           :placeholder="$t('admins.search')"
           variant="outlined"
           density="compact"
@@ -171,15 +199,17 @@ const deleteAdmin = async () => {
 
     <!-- Data Table -->
     <div class="table-container">
-      <v-data-table
+      <v-data-table-server
+        v-model:page="filters.page"
+        v-model:items-per-page="filters.per_page"
         :headers="headers"
         :items="admins"
+        :items-length="tableMeta.total"
         :loading="tableLoading"
         class="custom-table"
-        hide-default-footer
       >
         <template v-slot:item.actions="{ item }">
-          <div class="d-flex justify-end pr-4">
+          <div class="d-flex justify-end align-center pr-4">
             <v-btn icon variant="text" size="small" class="mr-1" @click="openDrawer(item)">
               <v-icon color="#64748B" size="20">mdi-square-edit-outline</v-icon>
             </v-btn>
@@ -188,11 +218,20 @@ const deleteAdmin = async () => {
             </v-btn>
           </div>
         </template>
-      </v-data-table>
-    </div>
-    
-    <div class="mt-4 text-caption" style="color: #64748B;">
-      {{ $t('admins.showing', { count: admins.length, total: admins.length }) }}
+
+        <template #bottom>
+          <TablePagination
+            :page="filters.page"
+            :per-page="filters.per_page"
+            :total="tableMeta.total"
+            :last-page="tableMeta.last_page"
+            :from="tableMeta.from"
+            :to="tableMeta.to"
+            @update:page="filters.page = $event"
+            @update:perPage="filters.per_page = $event"
+          />
+        </template>
+      </v-data-table-server>
     </div>
 
     <!-- Add/Edit Drawer -->

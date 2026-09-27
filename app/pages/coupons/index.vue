@@ -1,17 +1,29 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useGlobalStore } from '~/stores/global';
 import { useI18n } from 'vue-i18n';
 
 const globalStore = useGlobalStore();
 const { t } = useI18n();
 
-const search = ref('');
+const filters = reactive({
+  page: 1,
+  per_page: 10,
+  search: '',
+});
+
 const isDrawerOpen = ref(false);
 const isEditing = ref(false);
 const isDatePickerOpen = ref(false);
 const loading = ref(false);
 const tableLoading = ref(true);
+
+const tableMeta = ref({
+  total: 0,
+  last_page: 1,
+  from: 0,
+  to: 0,
+});
 
 const actionModalState = ref({
   isOpen: false,
@@ -63,7 +75,7 @@ const copyCode = (code) => {
 
 const fetchCoupons = async () => {
   tableLoading.value = true;
-  const res = await useApi().get("admins/manage-coupons", { search: search.value });
+  const res = await useApi().get("admins/manage-coupons", filters);
   if (res.success) {
     // API returns expiry_date, usage_limit, status as formatted strings in the list
     coupons.value = res.data.data.map(c => ({
@@ -71,6 +83,12 @@ const fetchCoupons = async () => {
       expiryDate: c.expiry_date,
       usageLimit: c.usage_limit,
     }));
+    tableMeta.value = {
+      total: res.data.total || 0,
+      last_page: res.data.last_page || 1,
+      from: res.data.from || 0,
+      to: res.data.to || 0,
+    };
   }
   tableLoading.value = false;
 };
@@ -80,11 +98,21 @@ onMounted(() => {
 });
 
 let searchTimeout = null;
-watch(search, () => {
+watch(() => filters.search, () => {
   if (searchTimeout) clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
+    filters.page = 1;
     fetchCoupons();
   }, 1000);
+});
+
+watch(() => filters.page, () => {
+  fetchCoupons();
+});
+
+watch(() => filters.per_page, () => {
+  filters.page = 1;
+  fetchCoupons();
 });
 
 const openDrawer = (coupon = null) => {
@@ -224,7 +252,7 @@ const saveCoupon = async () => {
     <div class="d-flex justify-space-between align-center mb-6">
       <div class="d-flex align-center w-50">
         <v-text-field
-          v-model="search"
+          v-model="filters.search"
           :placeholder="$t('coupons.search')"
           variant="outlined"
           density="compact"
@@ -243,12 +271,14 @@ const saveCoupon = async () => {
 
     <!-- Data Table -->
     <div class="table-container">
-      <v-data-table
+      <v-data-table-server
+        v-model:page="filters.page"
+        v-model:items-per-page="filters.per_page"
         :headers="headers"
         :items="coupons"
+        :items-length="tableMeta.total"
         :loading="tableLoading"
         class="custom-table"
-        hide-default-footer
       >
         <template v-slot:item.code="{ item }">
           <div class="d-flex align-center">
@@ -288,11 +318,20 @@ const saveCoupon = async () => {
             </v-btn>
           </div>
         </template>
-      </v-data-table>
-    </div>
-    
-    <div class="mt-4 text-caption" style="color: #64748B;">
-      {{ $t('coupons.showing', { count: coupons.length, total: coupons.length }) }}
+
+        <template #bottom>
+          <TablePagination
+            :page="filters.page"
+            :per-page="filters.per_page"
+            :total="tableMeta.total"
+            :last-page="tableMeta.last_page"
+            :from="tableMeta.from"
+            :to="tableMeta.to"
+            @update:page="filters.page = $event"
+            @update:perPage="filters.per_page = $event"
+          />
+        </template>
+      </v-data-table-server>
     </div>
 
     <!-- Add/Edit Drawer -->
