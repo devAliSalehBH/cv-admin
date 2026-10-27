@@ -1,0 +1,171 @@
+name: 🚀 Deploy CV Admin to Hostinger VPS (Testing)
+
+on:
+  push:
+    branches:
+      - testing
+
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Admin → Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+
+      # ============================
+      # 1. Checkout
+      # ============================
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+
+      # ============================
+      # 2. Setup Node.js
+      # ============================
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+
+      # ============================
+      # 3. Install dependencies
+      # ============================
+      - name: 📦 Install Dependencies
+        run: npm install
+
+
+      # ============================
+      # 4. Build Nuxt (SSR)
+      # ============================
+      - name: 🏗️ Build Nuxt App
+        run: npm run build
+        env:
+          BASE_URL: ${{ vars.TESTING_API_BASE_URL }}
+
+
+      # ============================
+      # 5. Setup SSH
+      # ============================
+      - name: 🔑 Setup SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+
+      # ============================
+      # 6. Add VPS to known_hosts
+      # ============================
+      - name: 🌐 Add VPS to known_hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+
+      # ============================
+      # 7. Upload build output to VPS
+      # (Nuxt's .output folder is self-contained, no node_modules needed)
+      # ============================
+      - name: 📤 Sync Build Output to VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ${{ secrets.VPS_ADMIN_APP_PATH }}"
+          rsync -avz --delete \
+            ./.output/ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_ADMIN_APP_PATH }}/.output/
+
+
+      # ============================
+      # 8. Restart App
+      # ============================
+      - name: 🔄 Restart App on VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
+
+            cd ${{ secrets.VPS_ADMIN_APP_PATH }}
+
+            echo "========================================="
+            echo "🚀 Starting admin deployment..."
+            echo "========================================="
+
+            # ---------------------------------
+            # Verify Nuxt production build
+            # ---------------------------------
+            if [ ! -f ".output/server/index.mjs" ]; then
+              echo "❌ .output/server/index.mjs not found!"
+              exit 1
+            fi
+
+            echo "✅ Production build found."
+
+
+            # ---------------------------------
+            # Stop & remove old PM2 process
+            # ---------------------------------
+            pm2 stop cv-admin || true
+            pm2 delete cv-admin || true
+
+
+            # ---------------------------------
+            # Start application on port 3002
+            # (API URL is read at runtime, never hardcoded)
+            # ---------------------------------
+            echo "🚀 Starting Nuxt application..."
+
+            PORT=3002 \
+            HOST=127.0.0.1 \
+            NODE_ENV=production \
+            NUXT_PUBLIC_API_BASE_URL="${{ vars.TESTING_API_BASE_URL }}" \
+            pm2 start .output/server/index.mjs \
+              --name cv-admin \
+              --cwd "${{ secrets.VPS_ADMIN_APP_PATH }}"
+
+            pm2 save
+
+            echo "⏳ Waiting for Nuxt..."
+            sleep 3
+
+            pm2 status
+
+
+            # ---------------------------------
+            # Check local application
+            # ---------------------------------
+            echo "🔍 Checking localhost:3002..."
+
+            if ! curl -f --max-time 10 http://127.0.0.1:3002 > /dev/null; then
+              echo "❌ Admin is NOT responding on port 3002."
+
+              echo "===== PM2 LOGS ====="
+              pm2 logs cv-admin --lines 50 --nostream || true
+
+              exit 1
+            fi
+
+            echo "========================================="
+            echo "✅ Admin is running on port 3002"
+            echo "========================================="
+
+            echo "🎉 Deployment completed successfully!"
+
+          EOF
+
+
+      # ============================
+      # 9. Success
+      # ============================
+      - name: ✅ Deployment Success
+        if: success()
+        run: |
+          echo "🎉 Admin deployed successfully to Testing environment!"
+
+
+      # ============================
+      # 10. Failure
+      # ============================
+      - name: ❌ Deployment Failed
+        if: failure()
+        run: |
+          echo "💥 Deployment failed!"
+          echo "Check the deployment logs above."
