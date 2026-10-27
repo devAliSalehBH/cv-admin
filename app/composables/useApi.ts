@@ -42,6 +42,9 @@ export const useApi = () => {
         const authProfile = useCookie("profile");
         authProfile.value = null;
         refreshCookie("profile");
+        const globalStore = useGlobalStore();
+        globalStore.authToken = null;
+        globalStore.profile = null;
       }
 
       return err;

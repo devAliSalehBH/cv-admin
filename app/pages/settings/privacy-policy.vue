@@ -1,165 +1,168 @@
-<template>
-  <div class="page-container h-100 d-flex flex-column" style="margin-left: -24px; margin-right: -24px; margin-top: -24px; max-width: none;">
-    <div class="bg-white h-100 d-flex flex-column pt-4">
-      <!-- Header -->
-      <div class="d-flex justify-space-between align-center px-6 py-4 mb-2" style="border-bottom: 1px solid #EAECF0;">
-        <div>
-          <div class="text-h5 font-weight-bold mb-1 script-color">{{ $t('settings.privacy.title', 'Privacy Policy') }}</div>
-          <div class="text-caption d-flex align-center gap-1" style="color: #64748B;">
-            <NuxtLink :to="localePath('/settings')" class="text-decoration-none" style="color: inherit;">
-              {{ $t('settings.title', 'Settings') }}
-            </NuxtLink> 
-            <v-icon size="16">mdi-chevron-right</v-icon> 
-            {{ $t('settings.privacy.title', 'Privacy Policy') }}
-          </div>
-        </div>
-        <div class="d-flex gap-3 align-center">
-           <v-btn color="#1570EF" class="text-none" style="border-radius: 8px;" elevation="0" prepend-icon="mdi-content-save-outline" height="40" @click="isConfirmModalOpen = true">
-             {{ $t('common.saveChanges', 'Save Changes') }}
-           </v-btn>
-        </div>
-      </div>
-      
-      <!-- Content -->
-      <div class="flex-grow-1 px-8 py-6" style="background-color: #F9FAFB;">
-        <div class="text-caption mb-2" style="color: #64748B;">{{ $t('settings.privacy.contentLabel', 'Privacy Policy Content') }}</div>
-        <div class="bg-white border rounded-lg overflow-hidden d-flex flex-column" style="height: calc(100vh - 180px); border-color: #EAECF0 !important;">
-           <ClientOnly>
-             <QuillEditor 
-               v-model:content="privacyForm.content" 
-               contentType="html" 
-               :toolbar="[['bold', 'italic', 'underline'], [{ 'header': 1 }, { 'header': 2 }], [{ 'list': 'ordered'}, { 'list': 'bullet' }]]" 
-               class="flex-grow-1 editor-container" 
-               placeholder="Enter privacy policy content..." 
-             />
-             <template #fallback>
-               <div class="d-flex justify-center align-center h-100 text-body-2" style="color: #64748B;">
-                 Loading editor...
-               </div>
-             </template>
-           </ClientOnly>
-        </div>
-      </div>
-    </div>
-
-    <!-- Confirmation Modal -->
-    <ClientOnly>
-      <v-dialog v-model="isConfirmModalOpen" max-width="795">
-        <v-card class="delete-modal-card pa-8 text-center" style="border-radius: 20px;">
-          <v-btn icon variant="text" width="27" height="27" class="position-absolute" style="top: 16px; right: 16px; z-index: 2;" @click="isConfirmModalOpen = false">
-            <v-icon color="#64748B" size="27">mdi-close-circle-outline</v-icon>
-          </v-btn>
-          <v-card-text class="pt-4 px-0 pb-0">
-            <h3 class="delete-modal-title mb-4">
-              Save Changes on Privacy Policy?
-            </h3>
-            <p class="delete-modal-desc mb-8">Saving these changes will update the website immediately.</p>
-            <div class="d-flex justify-center gap-3 w-100 mt-6">
-              <v-btn variant="outlined" class="delete-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isConfirmModalOpen = false">Cancel</v-btn>
-              <v-btn class="delete-confirm-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" :loading="loading" @click="saveChanges">Save & Update</v-btn>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-dialog>
-    </ClientOnly>
-  </div>
-</template>
-
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
 import { useGlobalStore } from '~/stores/global';
-import { useI18n } from 'vue-i18n';
 
 const globalStore = useGlobalStore();
 const { t } = useI18n();
 const localePath = useLocalePath();
 
-const loading = ref(false);
+useHead({ title: () => t('settings.privacy.title') });
+
+const loading = ref(true);
+const saving = ref(false);
 const isConfirmModalOpen = ref(false);
+const content = ref('');
 
-const privacyForm = reactive({
-  content: ''
-});
+const isEmpty = computed(() => !content.value || !content.value.replace(/<[^>]*>/g, '').trim());
 
-const fetchSettings = async () => {
-  // TODO: Implement API integration for fetching settings
-  privacyForm.content = '<h2>Privacy Policy</h2><p>This is a dummy privacy policy...</p>';
+const fetchPrivacy = async () => {
+  loading.value = true;
+  const res = await useApi().get('admins/settings/privacy');
+  if (res?.success && res.data) {
+    content.value = res.data.content ?? '';
+  } else if (res) {
+    globalStore.setAlertData(res);
+  }
+  loading.value = false;
 };
 
-onMounted(() => {
-  fetchSettings();
-});
+onMounted(fetchPrivacy);
+
+const askToSave = () => {
+  if (isEmpty.value) {
+    globalStore.showError(t('settings.privacy.emptyError'));
+    return;
+  }
+  isConfirmModalOpen.value = true;
+};
 
 const saveChanges = async () => {
-  loading.value = true;
-  
-  // TODO: Send privacy form to API
-  // const payload = { content: privacyForm.content };
-  // const res = await useApi().post('/api/v1/admins/settings/privacy', payload);
-  
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  globalStore.showSuccess('Privacy policy updated successfully');
-  isConfirmModalOpen.value = false;
-  loading.value = false;
+  saving.value = true;
+  const formData = new FormData();
+  formData.append('_method', 'patch');
+  formData.append('content', content.value);
+
+  const res = await useApi().post('admins/settings/privacy', {}, { formData });
+  saving.value = false;
+
+  if (res?.success) {
+    isConfirmModalOpen.value = false;
+    globalStore.showSuccess(t('settings.privacy.updated'));
+  } else {
+    globalStore.setAlertData(res);
+  }
 };
 </script>
 
+<template>
+  <div class="d-flex flex-column" style="min-height: calc(100vh - 80px)">
+    <div class="d-flex justify-space-between align-start flex-wrap mb-8" style="gap: 16px">
+      <div class="page-header mb-0">
+        <h1 class="page-header__title">{{ $t('settings.privacy.title') }}</h1>
+        <nav class="cv-breadcrumb" :aria-label="$t('settings.breadcrumb')">
+          <NuxtLink :to="localePath('/settings')">{{ $t('settings.title') }}</NuxtLink>
+          <CvIcon name="chevron-right" :size="18" :stroke-width="2" class="flip-rtl" />
+          <span aria-current="page">{{ $t('settings.privacy.title') }}</span>
+        </nav>
+      </div>
+
+      <v-btn class="cv-btn cv-btn--blue px-6" variant="flat" height="48" :disabled="loading" @click="askToSave">
+        <CvIcon name="save" :size="20" class="me-2" />
+        {{ $t('common.saveChanges') }}
+      </v-btn>
+    </div>
+
+    <label class="cv-label mb-3">{{ $t('settings.privacy.contentLabel') }}</label>
+    <div class="editor-card flex-grow-1">
+      <v-progress-linear v-if="loading" indeterminate color="#2C85FE" height="2" />
+      <ClientOnly>
+        <QuillEditor
+          v-if="!loading"
+          v-model:content="content"
+          content-type="html"
+          :toolbar="[['bold', 'italic', 'underline'], [{ header: 1 }, { header: 2 }], [{ list: 'ordered' }, { list: 'bullet' }], [{ align: [] }], ['link'], ['clean']]"
+          class="editor-container"
+          :placeholder="$t('settings.privacy.placeholder')"
+        />
+        <template #fallback>
+          <div class="d-flex justify-center align-center pa-8" style="color: var(--color-text-sec)">
+            {{ $t('common.loading') }}
+          </div>
+        </template>
+      </ClientOnly>
+    </div>
+
+    <CvConfirmModal
+      v-model="isConfirmModalOpen"
+      :title="$t('settings.privacy.confirmTitle')"
+      :message="$t('settings.confirmDesc')"
+      :confirm-text="$t('settings.saveAndUpdate')"
+      confirm-icon="save"
+      :loading="saving"
+      @confirm="saveChanges"
+    />
+  </div>
+</template>
+
 <style scoped>
-.page-container {
-  width: 100%;
+.cv-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  line-height: 24px;
+  color: var(--color-text-pri);
 }
 
-.script-color {
-  color: #101828;
+.cv-breadcrumb a {
+  color: inherit;
+  text-decoration: none;
 }
 
-/* Delete Modal Styling (Reused for Save Confirm) */
-.delete-modal-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333333;
+.cv-breadcrumb a:hover {
+  text-decoration: underline;
 }
 
-.delete-modal-desc {
-  font-size: 22px;
-  font-weight: 400;
-  color: #64748B;
-  line-height: 1.4;
+.editor-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  border: 1px solid var(--color-input-stroke);
+  border-radius: var(--radius-16);
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+  min-height: 480px;
 }
 
-.delete-cancel-btn {
-  background-color: #FFFFFF !important;
-  border: 1px solid #101828 !important;
-  color: #101828 !important;
-  font-size: 16px;
-  border-radius: 16px !important;
+.editor-container {
+  flex: 1;
 }
 
-.delete-confirm-btn {
-  background-color: #101828 !important;
-  color: #FCFCFC !important;
-  font-size: 16px;
-  font-weight: 500;
-  border-radius: 16px !important;
-}
-
-.gap-3 { gap: 12px; }
-
-/* Quill Editor Styling adjustments to match Vuetify */
-.editor-container :deep(.ql-toolbar) {
+.editor-card :deep(.ql-toolbar) {
   border: none !important;
-  border-bottom: 1px solid #EAECF0 !important;
+  border-bottom: 1px solid var(--color-stroke) !important;
   padding: 12px 16px !important;
-  background-color: #FFFFFF;
+  background: var(--color-gray-bg);
 }
-.editor-container :deep(.ql-container) {
+
+.editor-card :deep(.ql-container) {
   border: none !important;
   font-family: inherit !important;
-  font-size: 14px;
-  background-color: #FFFFFF;
+  font-size: 16px;
+  min-height: 420px;
 }
-.editor-container :deep(.ql-editor) {
+
+.editor-card :deep(.ql-editor) {
   padding: 24px;
+  line-height: 1.7;
+  color: var(--color-text-header);
+}
+
+.editor-card :deep(.ql-editor.ql-blank::before) {
+  color: var(--color-text-gray);
+  font-style: normal;
+}
+
+[dir='rtl'] .editor-card :deep(.ql-editor) {
+  text-align: right;
 }
 </style>

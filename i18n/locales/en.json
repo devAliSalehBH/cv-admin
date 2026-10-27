@@ -25,7 +25,8 @@
     "details": "Details",
     "viewAll": "View All",
     "export": "Export",
-    "import": "Import"
+    "import": "Import",
+    "saveChanges": "Save Changes"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -39,7 +40,10 @@
     "logout": "Logout",
     "notifications": "Notifications",
     "reports": "Reports",
-    "roles": "Roles & Permissions"
+    "roles": "Roles & Permissions",
+    "main": "Main navigation",
+    "superAdmin": "Super Admin",
+    "admin": "Admin"
   },
   "auth": {
     "login": "Login",
@@ -101,7 +105,36 @@
     "lightMode": "Light Mode",
     "notifications": "Notifications",
     "security": "Security",
-    "savedSuccessfully": "Saved successfully"
+    "savedSuccessfully": "Saved successfully",
+    "subtitle": "Configure application settings and preferences.",
+    "breadcrumb": "Breadcrumb",
+    "confirmDesc": "Saving these changes will update the website immediately.",
+    "saveAndUpdate": "Save & Update",
+    "privacy": {
+      "title": "Privacy Policy",
+      "desc": "Manage your privacy policy content",
+      "contentLabel": "Privacy Policy Content",
+      "placeholder": "Write the privacy policy content...",
+      "confirmTitle": "Save changes on Privacy Policy?",
+      "updated": "Privacy Policy has been Updated Successfully",
+      "emptyError": "Privacy policy content can't be empty"
+    },
+    "contact": {
+      "title": "Contact Us",
+      "desc": "Update contact information for support",
+      "instructions": "This contact information will be visible to users on the website. Please make sure all details are accurate before saving.",
+      "email": "Email",
+      "emailPlaceholder": "Enter company email",
+      "address": "Address",
+      "addressPlaceholder": "Enter company address",
+      "phone": "Phone number",
+      "confirmTitle": "Save changes on Contact Us?",
+      "updated": "Contact Us Section has been Updated Successfully"
+    },
+    "plans": {
+      "title": "Pricing & Plans",
+      "desc": "Manage subscription plans and pricing"
+    }
   },
   "validation": {
     "required": "This field is required",
@@ -205,12 +238,13 @@
     "description": "View and manage client subscriptions.",
     "search": "Search by name or email...",
     "addSubscription": "Create new Subscription",
-    "addDrawerDesc": "Enter the client's basic details to create a new account.",
+    "addDrawerDesc": "Choose the client and plan, then continue to pay on the client's behalf.",
     "stats": {
       "total": "Total Subscriptions",
       "active": "Active Subscriptions",
       "mrr": "Monthly Recurring Revenue (MRR)",
-      "canceled": "Canceled Subscriptions"
+      "canceled": "Canceled Subscriptions",
+      "canceledInfo": "Subscriptions that were cancelled by an admin."
     },
     "table": {
       "clientName": "Client Name",
@@ -225,15 +259,49 @@
       "selectClient": "Select Client",
       "plan": "Plan",
       "selectPlan": "Select Subscription Plan",
-      "startDate": "Starting Date"
+      "startDate": "Starting Date",
+      "noClients": "No clients found",
+      "startDateHint": "Leave empty to start today (or right after the client's current subscription ends).",
+      "endDate": "End Date"
     },
     "actions": {
       "continueToPayment": "Continue to Payment",
-      "renewNow": "Renew Now"
+      "renewNow": "Renew Now",
+      "renew": "Renew"
     },
     "renewModal": {
-      "title": "Renew this Monthly Subscription?",
-      "desc": "Renewing this subscription will extend it for another month and keep the client's access active."
+      "title": "Renew this {cycle} Subscription?",
+      "desc": "You'll pay for {plan} on behalf of {name}. The subscription will be extended once the payment succeeds."
+    },
+    "statsLabel": "Subscription statistics",
+    "editSubscription": "Edit Subscription",
+    "empty": "No subscriptions found.",
+    "filters": {
+      "all": "All statuses"
+    },
+    "status": {
+      "active": "Active",
+      "cancelled": "Cancelled",
+      "overdue": "Overdue"
+    },
+    "payment": {
+      "title": "Payment",
+      "invalidUrl": "Couldn't open the payment page. Please try again.",
+      "checkingTitle": "Confirming the payment...",
+      "checkingDesc": "This takes a few seconds, please don't close the page.",
+      "successTitle": "Payment completed successfully",
+      "successDesc": "The subscription for {name} is now active.",
+      "failedTitle": "Payment failed",
+      "failedDesc": "The payment was declined or cancelled.",
+      "timeoutTitle": "Payment still processing",
+      "timeoutDesc": "We couldn't confirm the payment yet. Check again in a moment.",
+      "checkAgain": "Check again",
+      "missingTitle": "No payment to check",
+      "missingDesc": "We couldn't find the order for this payment.",
+      "back": "Back to Subscriptions",
+      "client": "Client",
+      "orderNumber": "Order number",
+      "amountPaid": "Amount paid"
     }
   },
   "coupons": {
@@ -276,6 +344,49 @@
     "deleteModal": {
       "title": "Delete {code} coupon?",
       "desc": "Are you sure you want to delete this coupon? This action cannot be undone."
+    }
+  },
+  "plans": {
+    "title": "Pricing & Plans",
+    "empty": "No plans found.",
+    "editAria": "Edit {name} plan",
+    "fields": {
+      "id": "Subscription ID",
+      "type": "Subscription type",
+      "name": "Subscription Name",
+      "trialDays": "Days of trial",
+      "billing": "Billing on"
+    },
+    "mostPopular": "Most Popular",
+    "normal": "Normal",
+    "na": "N/A",
+    "billing": {
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    },
+    "perMonth": "Month",
+    "perYear": "Year",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "activatePlan": "Activate Plan",
+    "deactivatePlan": "Deactivate Plan",
+    "activateTitle": "Activate {name} Plan?",
+    "deactivateTitle": "Deactivate {name} Plan?",
+    "activateDesc": "Activating this plan will make it available to users.",
+    "deactivateDesc": "Deactivating this plan will make it unavailable to users.",
+    "continueQuestion": "Are you sure you want to continue?",
+    "activated": "{name} plan has been Activated Successfully",
+    "deactivated": "{name} plan has been Deactivated Successfully",
+    "updated": "{name} plan has been Updated Successfully",
+    "updateTitle": "Update {name} Plan",
+    "form": {
+      "nameEn": "Name (English)",
+      "nameAr": "Name (Arabic)",
+      "price": "Price",
+      "billing": "Billing cycle",
+      "trialDays": "Days of Trial",
+      "trialPlaceholder": "Enter number of days",
+      "isPopular": "Show as \"Most Popular\""
     }
   }
 }

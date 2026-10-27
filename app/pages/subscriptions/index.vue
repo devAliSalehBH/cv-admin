@@ -1,459 +1,850 @@
 <script setup>
-import { ref, computed } from 'vue';
 import { useGlobalStore } from '~/stores/global';
-import { useRouter } from 'vue-router';
-import { useLocalePath } from '#i18n';
 
 const globalStore = useGlobalStore();
-const { t } = useI18n();
-const localePath = useLocalePath();
-const router = useRouter();
+const { t, locale } = useI18n();
+const { rules } = useValidationRules();
 
-const search = ref('');
-const isAddDrawerOpen = ref(false);
-const isRenewModalOpen = ref(false);
-const selectedSub = ref(null);
-const isEditing = ref(false);
-const isDatePickerOpen = ref(false);
+useHead({ title: () => t('subscriptions.title') });
 
-const updateDate = (val) => {
-  if (!val) return;
-  const date = new Date(val);
-  const d = date.getDate().toString().padStart(2, '0');
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  const y = date.getFullYear().toString().slice(-2);
-  form.value.startDate = `${d}/${m}/${y}`;
-  isDatePickerOpen.value = false;
+const PENDING_ORDER_KEY = 'admin_pending_order_id';
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+const stats = ref({ total: 0, active: 0, canceled: 0, mrr: 0, currency: 'SAR' });
+const statsLoading = ref(true);
+
+const fetchStats = async () => {
+  statsLoading.value = true;
+  const res = await useApi().get('admins/manage-subscriptions/statistics');
+  if (res?.success && res.data) stats.value = { ...stats.value, ...res.data };
+  statsLoading.value = false;
 };
 
-const form = ref({
-  client: null,
-  plan: null,
-  startDate: '',
-});
+const numberFormat = computed(() => new Intl.NumberFormat(locale.value === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US'));
+const fmt = (n) => numberFormat.value.format(Number(n) || 0);
 
-const clientsList = ['Mohamed Ahmed', 'Ali Saleh', 'Khalid Saad'];
-const plansList = ['Premium', 'Basic', 'Enterprise'];
+const statCards = computed(() => [
+  { key: 'total', label: t('subscriptions.stats.total'), value: fmt(stats.value.total), icon: 'repeat', tile: 'blue' },
+  { key: 'active', label: t('subscriptions.stats.active'), value: fmt(stats.value.active), icon: 'repeat', tile: 'green' },
+  {
+    key: 'mrr',
+    label: t('subscriptions.stats.mrr'),
+    value: `${fmt(Math.round(stats.value.mrr))} ${stats.value.currency || 'SAR'}`,
+    icon: 'banknote',
+    tile: 'blue',
+  },
+  {
+    key: 'canceled',
+    label: t('subscriptions.stats.canceled'),
+    value: fmt(stats.value.canceled),
+    icon: 'repeat',
+    tile: 'gray',
+    info: t('subscriptions.stats.canceledInfo'),
+  },
+]);
 
-const subscriptions = ref([
-  { id: 1, name: 'Mohamed Ahmed', type: 'Premium', date: 'Jan 15, 2024', cycle: 'Monthly', status: 'Active' },
-  { id: 2, name: 'Mohamed Ahmed', type: 'Premium', date: 'Jan 15, 2024', cycle: 'Yearly', status: 'Cancelled' },
-  { id: 3, name: 'Mohamed Ahmed', type: 'Premium', date: 'Jan 15, 2024', cycle: 'Yearly', status: 'Overdue' },
-  { id: 4, name: 'Mohamed Ahmed', type: 'Premium', date: 'Jan 15, 2024', cycle: 'Yearly', status: 'Overdue' },
+// ─── Table ────────────────────────────────────────────────────────────────────
+const filters = reactive({ page: 1, per_page: 10, search: '', status: '' });
+const subscriptions = ref([]);
+const tableLoading = ref(true);
+const tableMeta = ref({ total: 0, last_page: 1, from: 0, to: 0 });
+
+const statusOptions = computed(() => [
+  { title: t('subscriptions.filters.all'), value: '' },
+  { title: t('subscriptions.status.active'), value: 'active' },
+  { title: t('subscriptions.status.overdue'), value: 'overdue' },
+  { title: t('subscriptions.status.cancelled'), value: 'cancelled' },
 ]);
 
 const headers = computed(() => [
-  { title: t('subscriptions.table.clientName'), key: 'name', sortable: false, align: 'start' },
-  { title: t('subscriptions.table.subType'), key: 'type', sortable: false, align: 'start' },
-  { title: t('subscriptions.table.startDate'), key: 'date', sortable: false, align: 'start' },
-  { title: t('subscriptions.table.paymentCycle'), key: 'cycle', sortable: false, align: 'start' },
-  { title: t('subscriptions.table.status'), key: 'status', sortable: false, align: 'start' },
-  { title: t('common.actions'), key: 'actions', sortable: false, align: 'end' },
+  { title: t('subscriptions.table.clientName'), key: 'client_name', sortable: false },
+  { title: t('subscriptions.table.subType'), key: 'plan_name', sortable: false },
+  { title: t('subscriptions.table.startDate'), key: 'start_date', sortable: false },
+  { title: t('subscriptions.table.paymentCycle'), key: 'payment_cycle', sortable: false },
+  { title: t('subscriptions.table.status'), key: 'status', sortable: false },
+  { title: t('common.actions'), key: 'actions', sortable: false, width: 140 },
 ]);
 
-const getStatusColor = (status) => {
-  if (status === 'Active') return '#ECFDF3'; 
-  if (status === 'Cancelled') return '#F2F4F7'; 
-  if (status === 'Overdue') return '#FEF3F2'; 
-  return '#F2F4F7';
-};
-
-const getStatusTextColor = (status) => {
-  if (status === 'Active') return '#027A48'; 
-  if (status === 'Cancelled') return '#344054'; 
-  if (status === 'Overdue') return '#B42318'; 
-  return '#344054';
-};
-
-const openAddDrawer = (sub = null) => {
-  if (sub) {
-    isEditing.value = true;
-    selectedSub.value = sub;
-    form.value = {
-      client: sub.name,
-      plan: sub.type,
-      startDate: sub.date,
+const fetchSubscriptions = async () => {
+  tableLoading.value = true;
+  const res = await useApi().get('admins/manage-subscriptions', filters);
+  if (res?.success) {
+    const payload = res.data || {};
+    const meta = payload.meta || payload;
+    subscriptions.value = payload.data || [];
+    tableMeta.value = {
+      total: meta.total || 0,
+      last_page: meta.last_page || 1,
+      from: meta.from || 0,
+      to: meta.to || 0,
     };
-  } else {
-    isEditing.value = false;
-    selectedSub.value = null;
-    form.value = { client: null, plan: null, startDate: '' };
+  } else if (res) {
+    globalStore.setAlertData(res);
   }
-  isAddDrawerOpen.value = true;
+  tableLoading.value = false;
 };
 
-const confirmRenew = (sub) => {
-  selectedSub.value = sub;
-  isRenewModalOpen.value = true;
+const refreshAll = () => {
+  fetchStats();
+  fetchSubscriptions();
 };
 
-const renewSubscription = () => {
-  isRenewModalOpen.value = false;
-  globalStore.showSuccess('The subscription has been renewed successfully');
+onMounted(refreshAll);
+
+let searchTimeout = null;
+watch(
+  () => filters.search,
+  () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      filters.page = 1;
+      fetchSubscriptions();
+    }, 600);
+  },
+);
+watch(() => filters.status, () => {
+  filters.page = 1;
+  fetchSubscriptions();
+});
+watch(() => filters.page, fetchSubscriptions);
+watch(() => filters.per_page, () => {
+  filters.page = 1;
+  fetchSubscriptions();
+});
+
+const planName = (item) =>
+  locale.value === 'ar' ? item.plan_name_ar || item.plan_name_en : item.plan_name_en || item.plan_name_ar;
+const cycleLabel = (cycle) => (cycle ? t(`plans.billing.${cycle}`) : '—');
+const statusLabel = (status) => t(`subscriptions.status.${status}`);
+const formatDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat(locale.value === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(d);
 };
 
-const continueToPayment = () => {
-  isAddDrawerOpen.value = false;
-  router.push(localePath('/subscriptions/payment'));
+// ─── Shared lists for the drawer ──────────────────────────────────────────────
+const plans = ref([]);
+const fetchPlans = async () => {
+  const res = await useApi().get('admins/settings/plans');
+  if (res?.success) plans.value = (res.data || []).filter((p) => p.is_active);
+};
+const planOptions = computed(() =>
+  plans.value.map((p) => ({
+    value: p.id,
+    title: `${locale.value === 'ar' ? p.name_ar : p.name_en} — ${Number(p.price)} ${p.currency} / ${cycleLabel(p.billing_type)}`,
+  })),
+);
+
+const clients = ref([]);
+const clientsLoading = ref(false);
+const clientSearch = ref('');
+let clientTimeout = null;
+const fetchClients = async (search = '') => {
+  clientsLoading.value = true;
+  const res = await useApi().get('admins/manage-users', { page: 1, per_page: 20, search });
+  if (res?.success) clients.value = res.data?.data || [];
+  clientsLoading.value = false;
+};
+watch(clientSearch, (value) => {
+  clearTimeout(clientTimeout);
+  clientTimeout = setTimeout(() => fetchClients(value || ''), 400);
+});
+
+// ─── Create (pay on behalf of a client) ───────────────────────────────────────
+const isCreateOpen = ref(false);
+const createFormRef = ref(null);
+const isDatePickerOpen = ref(false);
+const paying = ref(false);
+const createForm = reactive({ user_id: null, plan_id: null, starts_at: null });
+
+const today = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const toApiDate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const toDisplayDate = (d) =>
+  d ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}` : '';
+
+const openCreate = () => {
+  createForm.user_id = null;
+  createForm.plan_id = null;
+  createForm.starts_at = null;
+  isCreateOpen.value = true;
+  if (!plans.value.length) fetchPlans();
+  if (!clients.value.length) fetchClients();
+};
+
+const pickDate = (value) => {
+  if (!value) return;
+  createForm.starts_at = new Date(value);
+  isDatePickerOpen.value = false;
+};
+
+// Same flow as the main app: create the order, then hand the browser to the
+// AlinmaPay hosted page. The gateway comes back to /subscriptions/payment.
+const startCheckout = async (payload) => {
+  paying.value = true;
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') formData.append(key, value);
+  });
+  formData.append('locale', locale.value);
+
+  const res = await useApi().post('admins/manage-subscriptions/checkout', {}, { formData });
+
+  if (!res?.success) {
+    paying.value = false;
+    globalStore.setAlertData(res);
+    return false;
+  }
+
+  const url = res.data?.payment_url;
+  if (!url || !/^https:\/\//i.test(url)) {
+    paying.value = false;
+    globalStore.showError(t('subscriptions.payment.invalidUrl'));
+    return false;
+  }
+
+  try {
+    localStorage.setItem(PENDING_ORDER_KEY, res.data.order_id);
+  } catch {}
+
+  window.location.href = url;
+  return true;
+};
+
+const continueToPayment = async () => {
+  const { valid } = await createFormRef.value.validate();
+  if (!valid) return;
+  await startCheckout({
+    user_id: createForm.user_id,
+    plan_id: createForm.plan_id,
+    starts_at: createForm.starts_at ? toApiDate(createForm.starts_at) : null,
+  });
+};
+
+// Back button from the gateway restores this page from bfcache — unlock it.
+onMounted(() => {
+  window.addEventListener('pageshow', onPageShow);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('pageshow', onPageShow);
+});
+function onPageShow(e) {
+  if (e.persisted) paying.value = false;
+}
+
+// ─── Renew ────────────────────────────────────────────────────────────────────
+const renewModal = reactive({ open: false, item: null });
+const openRenew = (item) => {
+  renewModal.item = item;
+  renewModal.open = true;
+};
+const confirmRenew = () =>
+  startCheckout({ user_id: renewModal.item.user_id, plan_id: renewModal.item.plan_id });
+
+// ─── Edit ─────────────────────────────────────────────────────────────────────
+const isEditOpen = ref(false);
+const editFormRef = ref(null);
+const editSaving = ref(false);
+const isEndPickerOpen = ref(false);
+const editItem = ref(null);
+const editForm = reactive({ status: 'active', ends_at: null });
+const editStatusOptions = computed(() => [
+  { title: t('subscriptions.status.active'), value: 'active' },
+  { title: t('subscriptions.status.cancelled'), value: 'canceled' },
+]);
+
+const openEdit = (item) => {
+  editItem.value = item;
+  editForm.status = item.raw_status === 'canceled' ? 'canceled' : 'active';
+  editForm.ends_at = item.ends_at ? new Date(item.ends_at) : null;
+  isEditOpen.value = true;
+};
+
+const pickEndDate = (value) => {
+  if (!value) return;
+  editForm.ends_at = new Date(value);
+  isEndPickerOpen.value = false;
+};
+
+const saveEdit = async () => {
+  const { valid } = await editFormRef.value.validate();
+  if (!valid) return;
+  editSaving.value = true;
+  const formData = new FormData();
+  formData.append('_method', 'patch');
+  formData.append('status', editForm.status);
+  if (editForm.ends_at) formData.append('ends_at', toApiDate(editForm.ends_at));
+  const res = await useApi().post(`admins/manage-subscriptions/${editItem.value.id}`, {}, { formData });
+  editSaving.value = false;
+  globalStore.setAlertData(res);
+  if (res?.success) {
+    isEditOpen.value = false;
+    refreshAll();
+  }
 };
 </script>
 
 <template>
   <div>
-    <!-- Header -->
-    <div class="mb-6">
-      <h1 class="page-title">{{ $t('subscriptions.title') }}</h1>
-      <p class="page-description mt-2">{{ $t('subscriptions.description') }}</p>
-    </div>
+    <header class="page-header">
+      <h1 class="page-header__title">{{ $t('subscriptions.title') }}</h1>
+      <p class="page-header__subtitle">{{ $t('subscriptions.description') }}</p>
+    </header>
 
-    <!-- Stats Cards -->
-    <v-row class="mb-6">
-      <v-col cols="3">
-        <v-card class="stat-card pa-5 d-flex flex-column h-100" elevation="0">
-          <div class="stat-icon-wrapper total-icon mb-4">
-            <v-icon color="#2E87FE" size="24">mdi-sync</v-icon>
-          </div>
-          <div class="stat-title">{{ $t('subscriptions.stats.total') }}</div>
-          <div class="stat-value">5968</div>
-        </v-card>
-      </v-col>
-      <v-col cols="3">
-        <v-card class="stat-card pa-5 d-flex flex-column h-100" elevation="0">
-          <div class="stat-icon-wrapper active-icon mb-4">
-            <v-icon color="#12B76A" size="24">mdi-sync</v-icon>
-          </div>
-          <div class="stat-title">{{ $t('subscriptions.stats.active') }}</div>
-          <div class="stat-value">596</div>
-        </v-card>
-      </v-col>
-      <v-col cols="3">
-        <v-card class="stat-card pa-5 d-flex flex-column h-100" elevation="0">
-          <div class="stat-icon-wrapper mrr-icon mb-4">
-            <v-icon color="#2E87FE" size="24">mdi-cash-multiple</v-icon>
-          </div>
-          <div class="stat-title">{{ $t('subscriptions.stats.mrr') }}</div>
-          <div class="stat-value">8,748 SAR</div>
-        </v-card>
-      </v-col>
-      <v-col cols="3">
-        <v-card class="stat-card pa-5 d-flex flex-column h-100 position-relative" elevation="0">
-          <div class="stat-icon-wrapper canceled-icon mb-4">
-            <v-icon color="#667085" size="24">mdi-sync-off</v-icon>
-          </div>
-          <v-icon class="info-icon position-absolute" style="top: 20px; right: 20px; cursor: pointer;" color="#98A2B3" size="20">mdi-information-outline</v-icon>
-          <div class="stat-title">{{ $t('subscriptions.stats.canceled') }}</div>
-          <div class="stat-value">895</div>
-        </v-card>
-      </v-col>
-    </v-row>
+    <!-- Stats -->
+    <section class="stats-grid" :aria-label="$t('subscriptions.statsLabel')">
+      <div v-for="card in statCards" :key="card.key" class="stat-card">
+        <div class="stat-card__tile" :class="`stat-card__tile--${card.tile}`">
+          <CvIcon :name="card.icon" :size="24" />
+        </div>
+        <v-tooltip v-if="card.info" :text="card.info" location="top" max-width="260">
+          <template #activator="{ props }">
+            <button v-bind="props" type="button" class="stat-card__info" :aria-label="card.info">
+              <CvIcon name="info" :size="17" color="#929292" />
+            </button>
+          </template>
+        </v-tooltip>
+        <div class="stat-card__text">
+          <span class="stat-card__label">{{ card.label }}</span>
+          <v-skeleton-loader v-if="statsLoading" type="text" width="90" class="bg-transparent pa-0" />
+          <span v-else class="stat-card__value" dir="ltr">{{ card.value }}</span>
+        </div>
+      </div>
+    </section>
 
     <!-- Toolbar -->
-    <div class="d-flex justify-space-between align-center mb-6">
-      <div class="d-flex align-center w-50">
-        <v-text-field
-          v-model="search"
-          :placeholder="$t('subscriptions.search')"
-          variant="outlined"
-          density="compact"
-          prepend-inner-icon="mdi-magnify"
-          hide-details
-          class="search-field flex-grow-1 me-4"
-        ></v-text-field>
-        <v-btn variant="outlined" class="filter-btn text-none" height="44" prepend-icon="mdi-filter-variant" elevation="0">
-          {{ $t('common.filter') }}
-        </v-btn>
+    <div class="toolbar">
+      <div class="toolbar__left">
+        <div class="search-box">
+          <CvIcon name="search" :size="20" color="#64748B" />
+          <input
+            v-model="filters.search"
+            type="search"
+            :placeholder="$t('subscriptions.search')"
+            :aria-label="$t('subscriptions.search')"
+          />
+        </div>
+
+        <v-menu location="bottom start">
+          <template #activator="{ props }">
+            <button v-bind="props" type="button" class="filter-btn" :class="{ 'filter-btn--on': !!filters.status }">
+              <CvIcon name="filter" :size="20" />
+              <span>{{ $t('common.filter') }}</span>
+              <span v-if="filters.status" class="filter-btn__dot" />
+            </button>
+          </template>
+          <v-list density="compact" class="py-1" min-width="180">
+            <v-list-item
+              v-for="opt in statusOptions"
+              :key="opt.value"
+              :active="filters.status === opt.value"
+              color="primary"
+              @click="filters.status = opt.value"
+            >
+              <v-list-item-title>{{ opt.title }}</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </div>
-      <v-btn class="add-btn text-none" height="44" rounded="lg" prepend-icon="mdi-plus" elevation="0" @click="openAddDrawer()">
-         {{ $t('subscriptions.addSubscription') }}
+
+      <v-btn class="create-btn" variant="flat" @click="openCreate">
+        <CvIcon name="plus" :size="20" class="me-2" />
+        {{ $t('subscriptions.addSubscription') }}
       </v-btn>
     </div>
 
-    <!-- Data Table -->
+    <!-- Table -->
     <div class="table-container">
-      <v-data-table
+      <v-data-table-server
         :headers="headers"
         :items="subscriptions"
-        class="custom-table"
+        :items-length="tableMeta.total"
+        :loading="tableLoading"
+        :items-per-page="filters.per_page"
+        class="cv-table"
         hide-default-footer
+        :no-data-text="$t('subscriptions.empty')"
+        :loading-text="$t('common.loading')"
       >
-        <template v-slot:item.status="{ item }">
-          <v-chip size="small" :style="{ backgroundColor: getStatusColor(item.status) + ' !important', color: getStatusTextColor(item.status) + ' !important' }" class="font-weight-medium px-3" border="0" variant="flat">
-            {{ item.status }}
-          </v-chip>
+        <template #item.client_name="{ item }">
+          <span class="cell-strong">{{ item.client_name || '—' }}</span>
         </template>
-        <template v-slot:item.actions="{ item }">
-          <div class="d-flex justify-end pr-4">
-            <v-btn icon variant="text" size="small" class="mx-1" @click="openAddDrawer(item)">
-              <v-icon color="#64748B" size="20">mdi-square-edit-outline</v-icon>
-            </v-btn>
-            <v-btn icon variant="text" size="small" @click="confirmRenew(item)">
-              <v-icon color="#12B76A" size="20">mdi-sync</v-icon>
-            </v-btn>
+        <template #item.plan_name="{ item }">{{ planName(item) }}</template>
+        <template #item.start_date="{ item }">{{ formatDate(item.starts_at) }}</template>
+        <template #item.payment_cycle="{ item }">{{ cycleLabel(item.payment_cycle) }}</template>
+        <template #item.status="{ item }">
+          <span class="status-badge" :class="`status-badge--${item.status}`">{{ statusLabel(item.status) }}</span>
+        </template>
+        <template #item.actions="{ item }">
+          <div class="d-flex align-center" style="gap: 6px">
+            <v-tooltip :text="$t('common.edit')" location="top">
+              <template #activator="{ props }">
+                <button v-bind="props" type="button" class="row-action" :aria-label="$t('common.edit')" @click="openEdit(item)">
+                  <CvIcon name="edit" :size="20" color="#111111" />
+                </button>
+              </template>
+            </v-tooltip>
+            <v-tooltip v-if="item.status !== 'active'" :text="$t('subscriptions.actions.renew')" location="top">
+              <template #activator="{ props }">
+                <button
+                  v-bind="props"
+                  type="button"
+                  class="row-action"
+                  :aria-label="$t('subscriptions.actions.renew')"
+                  @click="openRenew(item)"
+                >
+                  <CvIcon name="repeat" :size="20" color="#065F46" />
+                </button>
+              </template>
+            </v-tooltip>
           </div>
         </template>
-      </v-data-table>
-    </div>
-    
-    <div class="mt-4 text-caption" style="color: #64748B;">
-      {{ $t('subscriptions.showing', { count: subscriptions.length, total: subscriptions.length }) }}
+      </v-data-table-server>
     </div>
 
-    <!-- Add Drawer -->
-    <v-navigation-drawer
-      v-model="isAddDrawerOpen"
-      location="end"
-      width="450"
-      temporary
-      class="drawer-wrapper"
-      elevation="2"
+    <TablePagination
+      v-if="tableMeta.last_page > 1"
+      v-model:page="filters.page"
+      v-model:per-page="filters.per_page"
+      :total="tableMeta.total"
+      :last-page="tableMeta.last_page"
+      :from="tableMeta.from"
+      :to="tableMeta.to"
+    />
+    <p v-else class="table-footnote">
+      {{ $t('subscriptions.showing', { count: subscriptions.length, total: tableMeta.total }) }}
+    </p>
+
+    <!-- Create subscription drawer -->
+    <CvDrawer
+      v-model="isCreateOpen"
+      :title="$t('subscriptions.addSubscription')"
+      :description="$t('subscriptions.addDrawerDesc')"
     >
-      <div class="drawer-header px-6 pt-6 pb-2 d-flex justify-space-between align-center">
-        <h2 class="drawer-title">{{ $t('subscriptions.addSubscription') }}</h2>
-        <v-btn icon variant="text" width="27" height="27" @click="isAddDrawerOpen = false">
-          <v-icon color="#64748B" size="27">mdi-close-circle-outline</v-icon>
-        </v-btn>
-      </div>
-      <p class="drawer-desc px-6 mb-4" style="color: #64748B; font-size: 14px;">{{ $t('subscriptions.addDrawerDesc') }}</p>
-
-      <div class="drawer-content px-6 pt-4">
-        <div class="mb-4">
-          <div class="form-label mb-2">{{ $t('subscriptions.form.beneficiary') }}</div>
-          <v-select v-model="form.client" :items="clientsList" :placeholder="$t('subscriptions.form.selectClient')" variant="outlined" density="compact" class="custom-input" hide-details></v-select>
-        </div>
-
-        <div class="mb-4">
-          <div class="form-label mb-2">{{ $t('subscriptions.form.plan') }}</div>
-          <v-select v-model="form.plan" :items="plansList" :placeholder="$t('subscriptions.form.selectPlan')" variant="outlined" density="compact" class="custom-input" hide-details></v-select>
-        </div>
-
-        <div class="mb-4">
-          <div class="form-label mb-2">{{ $t('subscriptions.form.startDate') }}</div>
-          <v-menu v-model="isDatePickerOpen" :close-on-content-click="false" transition="scale-transition">
-            <template v-slot:activator="{ props }">
-              <v-text-field 
-                v-model="form.startDate" 
-                variant="outlined" 
-                density="compact" 
-                placeholder="DD/MM/YY" 
-                append-inner-icon="mdi-calendar-blank-outline" 
-                readonly 
-                v-bind="props" 
-                class="custom-input" 
-                hide-details
-              ></v-text-field>
+      <v-form ref="createFormRef" class="d-flex flex-column" style="gap: 16px" :disabled="paying">
+        <div>
+          <label class="cv-label" for="sub-client">{{ $t('subscriptions.form.beneficiary') }}</label>
+          <v-autocomplete
+            id="sub-client"
+            v-model="createForm.user_id"
+            v-model:search="clientSearch"
+            :items="clients"
+            item-title="name"
+            item-value="id"
+            :loading="clientsLoading"
+            :placeholder="$t('subscriptions.form.selectClient')"
+            :rules="[rules.required]"
+            :no-data-text="$t('subscriptions.form.noClients')"
+            no-filter
+            variant="outlined"
+            density="compact"
+            class="cv-input"
+            menu-icon="mdi-chevron-down"
+          >
+            <template #item="{ props: itemProps, item }">
+              <v-list-item v-bind="itemProps" :subtitle="item.raw.email" />
             </template>
-            <v-date-picker color="#2E87FE" @update:model-value="updateDate" show-adjacent-months></v-date-picker>
-          </v-menu>
+          </v-autocomplete>
         </div>
-      </div>
 
-      <div class="drawer-footer d-flex px-6 pt-8 gap-3" style="margin-top: auto; position: absolute; bottom: 24px; width: 100%;">
-        <v-btn variant="outlined" class="drawer-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isAddDrawerOpen = false">{{ $t('common.cancel') }}</v-btn>
-        <v-btn class="drawer-action-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="continueToPayment">
+        <div>
+          <label class="cv-label" for="sub-plan">{{ $t('subscriptions.form.plan') }}</label>
+          <v-select
+            id="sub-plan"
+            v-model="createForm.plan_id"
+            :items="planOptions"
+            :placeholder="$t('subscriptions.form.selectPlan')"
+            :rules="[rules.required]"
+            variant="outlined"
+            density="compact"
+            class="cv-input"
+            menu-icon="mdi-chevron-down"
+          />
+        </div>
+
+        <div>
+          <label class="cv-label" for="sub-start">{{ $t('subscriptions.form.startDate') }}</label>
+          <v-menu v-model="isDatePickerOpen" :close-on-content-click="false" location="bottom">
+            <template #activator="{ props }">
+              <v-text-field
+                id="sub-start"
+                v-bind="props"
+                :model-value="toDisplayDate(createForm.starts_at)"
+                placeholder="DD/MM/YY"
+                readonly
+                clearable
+                variant="outlined"
+                density="compact"
+                class="cv-input"
+                @click:clear="createForm.starts_at = null"
+              >
+                <template #append-inner>
+                  <CvIcon name="calendar" :size="16" color="#383838" />
+                </template>
+              </v-text-field>
+            </template>
+            <v-date-picker
+              :model-value="createForm.starts_at"
+              :min="today()"
+              color="#2C85FE"
+              show-adjacent-months
+              @update:model-value="pickDate"
+            />
+          </v-menu>
+          <p class="field-hint">{{ $t('subscriptions.form.startDateHint') }}</p>
+        </div>
+      </v-form>
+
+      <template #actions>
+        <v-btn class="cv-btn cv-btn--outline-dark" variant="flat" :disabled="paying" @click="isCreateOpen = false">
+          {{ $t('common.cancel') }}
+        </v-btn>
+        <v-btn class="cv-btn cv-btn--blue" variant="flat" :loading="paying" @click="continueToPayment">
           {{ $t('subscriptions.actions.continueToPayment') }}
         </v-btn>
-      </div>
-    </v-navigation-drawer>
+      </template>
+    </CvDrawer>
 
-    <!-- Renew Modal -->
-    <v-dialog v-model="isRenewModalOpen" max-width="795">
-      <v-card class="renew-modal-card pa-8 text-center" style="border-radius: 20px;">
-        <v-btn icon variant="text" width="27" height="27" class="position-absolute" style="top: 16px; right: 16px; z-index: 2;" @click="isRenewModalOpen = false">
-          <v-icon color="#64748B" size="27">mdi-close-circle-outline</v-icon>
+    <!-- Edit subscription drawer -->
+    <CvDrawer
+      v-model="isEditOpen"
+      :title="$t('subscriptions.editSubscription')"
+      :description="editItem ? `${editItem.client_name} · ${planName(editItem)}` : ''"
+    >
+      <v-form ref="editFormRef" class="d-flex flex-column" style="gap: 16px">
+        <div>
+          <label class="cv-label" for="sub-status">{{ $t('subscriptions.table.status') }}</label>
+          <v-select
+            id="sub-status"
+            v-model="editForm.status"
+            :items="editStatusOptions"
+            :rules="[rules.required]"
+            variant="outlined"
+            density="compact"
+            class="cv-input"
+            menu-icon="mdi-chevron-down"
+          />
+        </div>
+        <div>
+          <label class="cv-label" for="sub-end">{{ $t('subscriptions.form.endDate') }}</label>
+          <v-menu v-model="isEndPickerOpen" :close-on-content-click="false" location="bottom">
+            <template #activator="{ props }">
+              <v-text-field
+                id="sub-end"
+                v-bind="props"
+                :model-value="toDisplayDate(editForm.ends_at)"
+                placeholder="DD/MM/YY"
+                readonly
+                variant="outlined"
+                density="compact"
+                class="cv-input"
+              >
+                <template #append-inner>
+                  <CvIcon name="calendar" :size="16" color="#383838" />
+                </template>
+              </v-text-field>
+            </template>
+            <v-date-picker
+              :model-value="editForm.ends_at"
+              color="#2C85FE"
+              show-adjacent-months
+              @update:model-value="pickEndDate"
+            />
+          </v-menu>
+        </div>
+      </v-form>
+
+      <template #actions>
+        <v-btn class="cv-btn cv-btn--outline-dark" variant="flat" :disabled="editSaving" @click="isEditOpen = false">
+          {{ $t('common.cancel') }}
         </v-btn>
-        <v-card-text class="pt-4 px-0 pb-0">
-          <h3 class="renew-modal-title mb-4">{{ $t('subscriptions.renewModal.title') }}</h3>
-          <p class="renew-modal-desc mb-8">{{ $t('subscriptions.renewModal.desc') }}</p>
-          <div class="d-flex justify-center gap-3 w-100 mt-6">
-            <v-btn variant="outlined" class="renew-cancel-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="isRenewModalOpen = false">{{ $t('common.cancel') }}</v-btn>
-            <v-btn class="renew-confirm-btn text-none flex-grow-1" height="60" style="flex-basis: 0;" elevation="0" @click="renewSubscription">{{ $t('subscriptions.actions.renewNow') }}</v-btn>
-          </div>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+        <v-btn class="cv-btn cv-btn--blue" variant="flat" :loading="editSaving" @click="saveEdit">
+          <CvIcon name="save" :size="20" class="me-2" />
+          {{ $t('common.saveChanges') }}
+        </v-btn>
+      </template>
+    </CvDrawer>
+
+    <!-- Renew confirmation -->
+    <CvConfirmModal
+      v-model="renewModal.open"
+      :title="
+        renewModal.item
+          ? $t('subscriptions.renewModal.title', { cycle: cycleLabel(renewModal.item.payment_cycle) })
+          : ''
+      "
+      :confirm-text="$t('subscriptions.actions.renewNow')"
+      confirm-icon="repeat"
+      :loading="paying"
+      @confirm="confirmRenew"
+    >
+      {{
+        renewModal.item
+          ? $t('subscriptions.renewModal.desc', { name: renewModal.item.client_name, plan: planName(renewModal.item) })
+          : ''
+      }}
+    </CvConfirmModal>
   </div>
 </template>
 
 <style scoped>
-.page-title {
-  font-size: 32px;
-  font-weight: 500;
-  color: #111827;
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 48px;
+  margin-bottom: 24px;
 }
 
-.page-description {
-  font-size: 18px;
-  font-weight: 400;
-  color: #6B7280;
-}
-
-/* Stats Cards */
 .stat-card {
-  border-radius: 16px !important;
-  border: 1px solid #EAECF0 !important;
-  background-color: #FFFFFF !important;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 169px;
+  padding: 16px;
+  background: var(--color-white-bg);
+  border: 0.89px solid var(--color-stroke);
+  border-radius: var(--radius-16);
 }
 
-.stat-icon-wrapper {
+.stat-card__tile {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: var(--radius-12);
 }
 
-.total-icon { background-color: #EFF4FF; }
-.active-icon { background-color: #EDFDF8; }
-.mrr-icon { background-color: #EEF2F6; }
-.canceled-icon { background-color: #F2F4F7; }
-
-.stat-title {
-  font-size: 14px;
-  font-weight: 400;
-  color: #475467;
-  margin-bottom: 8px;
+.stat-card__tile--blue {
+  background: var(--color-icon-blue-bg);
+  color: var(--color-icon-blue);
 }
 
-.stat-value {
-  font-size: 32px;
-  font-weight: 600;
-  color: #101828;
+.stat-card__tile--green {
+  background: var(--color-status-green-bg);
+  color: var(--color-status-green-text);
 }
 
-.search-field :deep(.v-field__input) {
+.stat-card__tile--gray {
+  background: var(--color-status-black-bg);
+  color: var(--color-icon-black);
+}
+
+.stat-card__info {
+  position: absolute;
+  top: 16px;
+  inset-inline-end: 16px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: help;
+  line-height: 0;
+}
+
+.stat-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+}
+
+.stat-card__label {
   font-size: 16px;
-  font-weight: 400;
-  color: #64748B;
+  line-height: 1.2;
+  color: var(--color-text-sec);
 }
 
-.search-field :deep(.v-field) {
-  background-color: #FCFCFC !important;
-  border-radius: 10px !important;
-  border: 1px solid #E5E7EB;
+.stat-card__value {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 500;
+  color: var(--color-text-header);
+  align-self: flex-start;
 }
 
-.search-field :deep(.v-field__outline) {
-  display: none;
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.search-box {
+  width: 498px;
+  max-width: 100%;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--color-bg);
+  border: 0.89px solid var(--color-sec-stroke);
+  border-radius: var(--radius-10);
+}
+
+.search-box:focus-within {
+  border-color: var(--color-icon-blue);
+  box-shadow: 0 0 0 2px rgb(44 133 254 / 0.15);
+}
+
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: var(--color-text-header);
+}
+
+.search-box input::placeholder {
+  color: var(--color-text-sec);
 }
 
 .filter-btn {
-  background-color: #FFFFFF !important;
-  border: 1px solid #E5E7EB;
-  color: #374151;
-  font-size: 14px;
-  border-radius: 10px !important;
+  position: relative;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  background: var(--color-bg);
+  border: 0.89px solid var(--color-sec-stroke);
+  border-radius: var(--radius-10);
+  color: var(--color-text-sec);
+  font: inherit;
+  font-size: 16px;
+  line-height: 20px;
+  cursor: pointer;
 }
 
-.add-btn {
-  background-color: #101828 !important;
-  color: #FCFCFC !important;
-  font-size: 16px;
-  font-weight: 400;
+.filter-btn:hover,
+.filter-btn--on {
+  border-color: var(--color-icon-blue);
+  color: var(--color-icon-blue);
+}
+
+.filter-btn__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-icon-blue);
+}
+
+.create-btn {
+  height: 48px !important;
+  padding: 6px 22px !important;
+  border-radius: var(--radius-10) !important;
+  background: var(--color-button-bg) !important;
+  color: var(--color-button-text) !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
 }
 
 .table-container {
-  border: 1px solid #CBD5E1;
-  border-radius: 16px;
+  border: 0.89px solid var(--color-stroke);
+  border-radius: var(--radius-16);
+  background: var(--color-bg);
   overflow: hidden;
-  background-color: #FFFFFF;
 }
 
-.custom-table :deep(.v-table__wrapper > table > thead > tr > th) {
-  background-color: #F9FAFB !important;
-  color: #475467 !important;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: capitalize;
-  border-bottom: 1px solid #EAECF0 !important;
+.cv-table {
+  background: transparent !important;
 }
 
-.custom-table :deep(.v-table__wrapper > table > tbody > tr > td) {
+.cv-table :deep(thead th) {
+  height: 53.44px !important;
+  background: var(--color-gray-bg) !important;
+  border-bottom: 0.89px solid var(--color-sec-stroke) !important;
+  color: var(--color-text-sec) !important;
+  font-size: 14px !important;
+  line-height: 21px;
+  font-weight: 500 !important;
+}
+
+.cv-table :deep(tbody td) {
+  height: 70px !important;
+  font-size: 16px !important;
+  line-height: 24px;
+  color: var(--color-text-sec);
+  border-bottom: 1px solid var(--color-stroke) !important;
+}
+
+.cv-table :deep(thead th:first-child),
+.cv-table :deep(tbody td:first-child) {
+  padding-inline-start: 24px !important;
+}
+
+.cv-table :deep(tbody tr:last-child td) {
+  border-bottom: 0 !important;
+}
+
+.cv-table :deep(tbody tr:hover td) {
+  background: #f8fafc;
+}
+
+.cell-strong {
+  color: var(--color-text-header);
+}
+
+.row-action {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.row-action:hover {
+  background: #eef0f3;
+}
+
+.row-action:focus-visible {
+  outline: 2px solid var(--color-icon-blue);
+}
+
+.table-footnote {
+  margin-top: 16px;
   font-size: 14px;
-  color: #101828;
-  font-weight: 500;
-  border-bottom: 1px solid #EAECF0 !important;
-  padding-top: 12px !important;
-  padding-bottom: 12px !important;
+  line-height: 21px;
+  color: var(--color-text-sec);
 }
 
-.drawer-wrapper {
-  background-color: #FCFCFC !important;
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--color-text-gray);
 }
 
-.drawer-title {
-  font-size: 32px;
-  font-weight: 500;
-  color: #111827;
+@media (max-width: 1279px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
 }
-
-.drawer-desc {
-  line-height: 1.5;
-}
-
-.form-label {
-  font-size: 16px;
-  font-weight: 400;
-  color: #414651;
-}
-
-.custom-input :deep(.v-field) {
-  background-color: #FCFCFC !important;
-  border-radius: 8px !important;
-  border: 1px solid #D5D7DA;
-  box-shadow: 0px 1px 2px rgba(16, 24, 40, 0.05);
-}
-
-.custom-input :deep(.v-field__outline) {
-  display: none;
-}
-
-.drawer-cancel-btn {
-  background-color: #FFFFFF !important;
-  border: 1px solid #101828 !important;
-  color: #101828 !important;
-  font-size: 16px;
-  font-weight: 400;
-  border-radius: 16px !important;
-}
-
-.drawer-action-btn {
-  background-color: #2C85FE !important;
-  color: #FEFEFE !important;
-  font-size: 16px;
-  font-weight: 400;
-  border-radius: 16px !important;
-}
-
-/* Renew Modal */
-.renew-modal-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333333;
-}
-
-.renew-modal-desc {
-  font-size: 18px;
-  font-weight: 400;
-  color: #64748B;
-  line-height: 1.4;
-}
-
-.renew-cancel-btn {
-  background-color: #FFFFFF !important;
-  border: 1px solid #101828 !important;
-  color: #101828 !important;
-  font-size: 16px;
-  border-radius: 16px !important;
-}
-
-.renew-confirm-btn {
-  background-color: #101828 !important;
-  color: #FCFCFC !important;
-  font-size: 16px;
-  font-weight: 500;
-  border-radius: 16px !important;
-}
-
-.gap-3 { gap: 12px; }
 </style>

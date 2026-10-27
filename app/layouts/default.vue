@@ -1,21 +1,22 @@
 <template>
-  <v-app class="app-background">
-    <BaseSharedAlert />
-    <div class="d-flex w-100">
-      <MainVerticalNav />
-      <v-main class="flex-grow-1">
-        <div class="page-wrapper">
-          <slot />
-        </div>
-      </v-main>
-    </div>
+  <v-app class="cv-app">
+    <MainVerticalNav />
+    <v-main class="cv-main">
+      <div class="page-wrapper">
+        <slot />
+      </div>
+    </v-main>
   </v-app>
 </template>
 
 <style scoped>
-.app-background {
-  background:rgba(239, 250, 253, 0.267);
+.cv-app {
+  background: var(--page-bg) !important;
   min-height: 100vh;
+}
+
+.cv-main {
+  background: transparent;
 }
 
 .page-wrapper {

@@ -1,13 +1,198 @@
-@use "fonts";
+@use "tokens";
 
-body {
-  font-family: "IBM Plex Sans Arabic", sans-serif !important;
+// Fonts match the main CV Bot app: Cairo for Arabic, Outfit for English.
+// They are loaded from Google Fonts in nuxt.config.ts.
+html,
+body,
+.v-application {
+  font-family: var(--font-en) !important;
+}
+
+html[lang="ar"],
+html[lang="ar"] body,
+html[lang="ar"] .v-application {
+  font-family: var(--font-ar) !important;
+}
+
+// Vuetify typography classes hard-code Roboto; make them follow the page font.
+.v-application [class*="text-h"],
+.v-application [class*="text-body"],
+.v-application [class*="text-subtitle"],
+.v-application .text-caption,
+.v-application .text-button,
+.v-btn,
+.v-field,
+.v-list-item-title {
+  font-family: inherit !important;
 }
 
 .v-btn {
   letter-spacing: 0 !important;
+  text-transform: none !important;
 }
 
 .h-80 {
   height: 80svh !important;
+}
+
+// Shared page header used by the dashboard pages
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 32px;
+}
+
+.page-header__title {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 500;
+  color: var(--color-text-header);
+  margin: 0;
+}
+
+.page-header__subtitle {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 400;
+  color: var(--color-text-subtitle);
+  margin: 0;
+}
+
+// Status pills (Active / Cancelled / Overdue / Inactive)
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 29px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 400;
+  white-space: nowrap;
+
+  &--active {
+    background: var(--color-status-green-bg);
+    color: var(--color-status-green-text);
+  }
+  &--cancelled {
+    background: var(--color-status-black-bg);
+    color: var(--color-status-black-text);
+  }
+  &--overdue,
+  &--inactive {
+    background: var(--color-status-red-bg);
+    color: var(--color-status-red-text);
+  }
+}
+
+// Shared overlay (drawer + confirm modal) pieces
+.cv-scrim {
+  background: rgb(17 17 17 / 0.5) !important;
+  opacity: 1 !important;
+}
+
+.cv-close-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-icon-close);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-icon-close);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--color-gray-bg);
+  }
+}
+
+.cv-btn {
+  height: 60px !important;
+  border-radius: var(--radius-16) !important;
+  font-size: 16px !important;
+  box-shadow: none !important;
+
+  &--outline-dark {
+    background: #ffffff !important;
+    border: 1px solid var(--color-button-bg) !important;
+    color: var(--color-button-bg) !important;
+    font-weight: 400 !important;
+  }
+
+  &--dark {
+    background: var(--color-button-bg) !important;
+    color: var(--color-button-text) !important;
+    font-weight: 500 !important;
+  }
+
+  &--blue {
+    background: var(--color-button-sec-bg) !important;
+    color: var(--color-button-sec-text) !important;
+    border-radius: var(--radius-14) !important;
+    font-weight: 400 !important;
+  }
+}
+
+// Inputs inside drawers (Figma: 44px, radius 8, #D5D7DA border, shadow xs)
+.cv-input {
+  .v-field {
+    background-color: var(--color-bg) !important;
+    border-radius: var(--radius-8) !important;
+    border: 1px solid var(--color-input-stroke);
+    box-shadow: var(--shadow-xs);
+    min-height: 44px;
+    font-size: 15px;
+    color: var(--color-input-text);
+  }
+  .v-field--focused {
+    border-color: var(--color-button-sec-bg);
+    box-shadow: 0 0 0 2px rgb(44 133 254 / 0.15);
+  }
+  .v-field--error {
+    border-color: var(--color-error);
+  }
+  .v-field__outline {
+    display: none;
+  }
+  .v-field__input {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  input::placeholder,
+  .v-field__input::placeholder {
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--color-text-gray);
+    opacity: 1;
+  }
+  .v-messages__message {
+    color: var(--color-error);
+    font-size: 14px;
+  }
+}
+
+.cv-label {
+  display: block;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 400;
+  color: var(--color-input-label);
+  margin-bottom: 6px;
+}
+
+.cv-input-suffix {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-input-text);
+}
+
+// Mirror directional icons (chevrons, arrows) in Arabic
+[dir="rtl"] .flip-rtl {
+  transform: scaleX(-1);
 }

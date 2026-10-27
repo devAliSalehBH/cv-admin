@@ -11,71 +11,61 @@ const showAlert = computed({
 <template>
   <v-snackbar
     v-model="showAlert"
-    :timeout="4000"
+    :timeout="3000"
     variant="flat"
-    location="top right"
-    max-width="400"
-    min-width="300"
-    class="custom-snackbar"
-    :color="alert.success ? '#ECFDF3' : '#FEF3F2'"
+    location="top end"
+    color="transparent"
+    class="cv-toast"
+    content-class="cv-toast__content"
   >
-    <div class="d-flex align-center justify-start ga-3 alert-wrapper">
-      <div 
-        class="side-indicator" 
-        :class="alert.success ? 'bg-success-border' : 'bg-error-border'"
-      ></div>
-      <v-icon v-if="alert.success" color="#027A48" size="24">mdi-check</v-icon>
-      <v-icon v-else color="#B42318" size="24">mdi-alert-circle</v-icon>
-      <p 
-        class="f16 font-weight-medium mb-0"
-        :class="alert.success ? 'text-success-text' : 'text-error-text'"
-      >
-        {{ alert.message }}
-      </p>
+    <div
+      class="cv-toast__body"
+      :class="alert.success ? 'cv-toast__body--success' : 'cv-toast__body--error'"
+      role="status"
+    >
+      <CvIcon :name="alert.success ? 'check' : 'alert'" :size="16" :stroke-width="2.5" />
+      <span>{{ alert.message }}</span>
     </div>
   </v-snackbar>
 </template>
 
 <style scoped>
-.custom-snackbar :deep(.v-snackbar__content) {
+.cv-toast :deep(.v-snackbar__wrapper) {
+  margin: 52px 0 0 0 !important;
+  min-width: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
   padding: 0 !important;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0px 4px 6px -2px rgba(16, 24, 40, 0.05), 0px 12px 16px -4px rgba(16, 24, 40, 0.1);
-  border: 1px solid #E4E7EC;
 }
 
-.alert-wrapper {
-  padding: 12px 16px;
-  position: relative;
-  min-height: 56px;
+.cv-toast :deep(.v-snackbar__content) {
+  padding: 0 !important;
 }
 
-.side-indicator {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
+.cv-toast__body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  padding: 0 14px 0 24px;
+  font-family: var(--font-toast);
+  font-size: 15px;
+  line-height: 28px;
+  font-weight: 500;
+  border-inline-start: 10px solid;
+  box-shadow: 0 4px 12px rgb(16 24 40 / 0.06);
 }
 
-.bg-success-border {
-  background-color: #12B76A;
+.cv-toast__body--success {
+  background: var(--color-success-bg);
+  border-color: var(--color-success);
+  color: var(--color-success);
 }
 
-.bg-error-border {
-  background-color: #F04438;
-}
-
-.text-success-text {
-  color: #027A48;
-}
-
-.text-error-text {
-  color: #B42318;
-}
-
-.f16 {
-  font-size: 16px;
+.cv-toast__body--error {
+  background: #fef3f2;
+  border-color: var(--color-error);
+  color: #b42318;
 }
 </style>

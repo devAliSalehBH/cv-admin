@@ -31,7 +31,9 @@ const login = async () => {
       loading.value = false
       if (res.success) {
         setTokenValue(res)
-        navigateTo(localePath('/'))
+        // Wait for useCookie to flush the token to document.cookie, otherwise the
+        // auth middleware still sees no token and sends us back to login.
+        nextTick(() => navigateTo(localePath('/admins'), { replace: true }))
       }
     })
 }
@@ -40,7 +42,8 @@ const setTokenValue = (res: any) => {
   const newToken = res.data.token
   const profile = {
     email: res.data?.email,
-    name: res.data?.name,
+    name: res.data?.full_name ?? res.data?.name,
+    is_super_admin: !!res.data?.is_super_admin,
     permissions: {} as Record<string, boolean>,
   }
   if (res.data?.permissions) {

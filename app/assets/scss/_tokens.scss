@@ -1,0 +1,72 @@
+// CV Bot admin design tokens (from the Figma file)
+:root {
+  // Fonts
+  --font-en: "Outfit", "Inter", system-ui, sans-serif;
+  --font-ar: "Cairo", "Outfit", system-ui, sans-serif;
+  --font-toast: "Inter", var(--font-en);
+
+  // Surfaces
+  --color-bg: #fcfcfc;
+  --color-white-bg: #ffffff;
+  --color-gray-bg: #f9fafb;
+
+  // Strokes
+  --color-sec-stroke: #cbd5e1;
+  --color-stroke: #e5e7eb;
+  --color-input-stroke: #d5d7da;
+
+  // Text
+  --color-text-header: #111827;
+  --color-text-sec: #64748b;
+  --color-text-subtitle: #697280;
+  --color-text-pri: #333333;
+  --color-text-gray: #818282;
+  --color-text-settings-desc: #6b7280;
+  --color-input-label: #414651;
+  --color-input-text: #383838;
+  --color-text-blue: #2e87fe;
+
+  // Buttons
+  --color-button-bg: #101828;
+  --color-button-text: #fcfcfc;
+  --color-button-sec-bg: #2c85fe;
+  --color-button-sec-text: #fefefe;
+
+  // Icons
+  --color-icon-blue: #2c85fe;
+  --color-icon-blue-bg: #ecf4ff;
+  --color-icon-sec: #64748b;
+  --color-icon-black: #111111;
+  --color-icon-gray: #929292;
+  --color-icon-close: #6f6f6f;
+
+  // Status
+  --color-status-green-bg: #d1fae5;
+  --color-status-green-text: #065f46;
+  --color-status-red-bg: #fee2e2;
+  --color-status-red-text: #991b1b;
+  --color-status-black-bg: #e5e7eb;
+  --color-status-black-text: #374151;
+  --color-error: #f04438;
+  --color-success: #04b051;
+  --color-success-bg: #e8f8ee;
+
+  // Radii
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-14: 14px;
+  --radius-16: 16px;
+  --radius-modal: 40px;
+  --radius-pill: 35px;
+
+  // Shadows
+  --shadow-xs: 0 1px 2px rgb(10 13 18 / 0.05);
+  --shadow-container: 0 10px 15px rgb(59 130 246 / 0.15);
+
+  // Page background ("Main/colorful BG")
+  --page-bg:
+    radial-gradient(60% 60% at 0% 0%, rgb(233 252 249 / 0.9) 0%, rgb(242 242 255 / 0) 100%),
+    radial-gradient(60% 60% at 100% 100%, rgb(241 245 254 / 1) 0%, rgb(249 254 255 / 0) 100%),
+    #ffffff;
+}
