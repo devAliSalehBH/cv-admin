@@ -57,8 +57,23 @@ const fetchClients = async () => {
   tableLoading.value = false;
 };
 
+const stats = ref({
+  visitors: 0, // TODO: Firebase
+  registered_users: 0,
+  active_clients: 0,
+  non_subscribed_clients: 0,
+});
+
+const fetchStats = async () => {
+  const res = await useApi().get("admins/manage-users/statistics");
+  if (res.success) {
+    stats.value = { ...stats.value, ...res.data };
+  }
+};
+
 onMounted(() => {
   fetchClients();
+  fetchStats();
 });
 
 let searchTimeout = null;
@@ -146,6 +161,7 @@ const saveClient = async () => {
   if (res.success) {
     isAddEditDrawerOpen.value = false;
     fetchClients();
+    fetchStats();
   }
 };
 
@@ -163,6 +179,7 @@ const deleteClient = async () => {
   if (res.success) {
     isDeleteModalOpen.value = false;
     fetchClients();
+    fetchStats();
   }
 };
 </script>
@@ -189,7 +206,7 @@ const deleteClient = async () => {
             <v-icon color="#2E87FE" size="24">mdi-account-group-outline</v-icon>
           </div>
           <div class="stat-title">{{ $t('clients.stats.visitors') }}</div>
-          <div class="stat-value">5968</div>
+          <div class="stat-value">{{ stats.visitors }}</div>
         </v-card>
       </v-col>
       <v-col cols="3">
@@ -198,7 +215,7 @@ const deleteClient = async () => {
             <v-icon color="#2E87FE" size="24">mdi-account-outline</v-icon>
           </div>
           <div class="stat-title">{{ $t('clients.stats.registered') }}</div>
-          <div class="stat-value">596</div>
+          <div class="stat-value">{{ stats.registered_users }}</div>
         </v-card>
       </v-col>
       <v-col cols="3">
@@ -207,7 +224,7 @@ const deleteClient = async () => {
             <v-icon color="#12B76A" size="24">mdi-account-check-outline</v-icon>
           </div>
           <div class="stat-title">{{ $t('clients.stats.active') }}</div>
-          <div class="stat-value">895</div>
+          <div class="stat-value">{{ stats.active_clients }}</div>
         </v-card>
       </v-col>
       <v-col cols="3">
@@ -217,7 +234,7 @@ const deleteClient = async () => {
           </div>
           <v-icon class="info-icon position-absolute" style="top: 20px; right: 20px; cursor: pointer;" color="#98A2B3" size="20">mdi-information-outline</v-icon>
           <div class="stat-title">{{ $t('clients.stats.unsubscribed') }}</div>
-          <div class="stat-value">895</div>
+          <div class="stat-value">{{ stats.non_subscribed_clients }}</div>
         </v-card>
       </v-col>
     </v-row>
