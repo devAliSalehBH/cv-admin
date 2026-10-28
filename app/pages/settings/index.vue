@@ -18,6 +18,13 @@ const rows = computed(() => [
     to: localePath('/settings/privacy-policy'),
   },
   {
+    key: 'terms',
+    title: t('settings.terms.title'),
+    desc: t('settings.terms.desc'),
+    icon: 'edit',
+    to: localePath('/settings/terms-of-service'),
+  },
+  {
     key: 'contact',
     title: t('settings.contact.title'),
     desc: t('settings.contact.desc'),

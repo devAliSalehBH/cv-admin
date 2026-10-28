@@ -119,6 +119,15 @@
       "updated": "Privacy Policy has been Updated Successfully",
       "emptyError": "Privacy policy content can't be empty"
     },
+    "terms": {
+      "title": "Terms of Service",
+      "desc": "Manage your terms of service content",
+      "contentLabel": "Terms of Service Content",
+      "placeholder": "Write the terms of service content...",
+      "confirmTitle": "Save changes on Terms of Service?",
+      "updated": "Terms of Service has been Updated Successfully",
+      "emptyError": "Terms of service content can't be empty"
+    },
     "contact": {
       "title": "Contact Us",
       "desc": "Update contact information for support",
