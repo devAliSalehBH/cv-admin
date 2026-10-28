@@ -10,15 +10,21 @@ useHead({ title: () => t('settings.privacy.title') });
 const loading = ref(true);
 const saving = ref(false);
 const isConfirmModalOpen = ref(false);
-const content = ref('');
+const contentEn = ref('');
+const contentAr = ref('');
+const activeLang = ref('en');
 
-const isEmpty = computed(() => !content.value || !content.value.replace(/<[^>]*>/g, '').trim());
+const stripHtml = (html) => (html || '').replace(/<[^>]*>/g, '').trim();
+// At least one language must have content
+const toolbar = [['bold', 'italic', 'underline'], [{ header: 1 }, { header: 2 }], [{ list: 'ordered' }, { list: 'bullet' }], [{ align: [] }], ['link'], ['clean']];
+const isEmpty = computed(() => !stripHtml(contentEn.value) && !stripHtml(contentAr.value));
 
 const fetchPrivacy = async () => {
   loading.value = true;
   const res = await useApi().get('admins/settings/privacy');
   if (res?.success && res.data) {
-    content.value = res.data.content ?? '';
+    contentEn.value = res.data.content_en ?? '';
+    contentAr.value = res.data.content_ar ?? '';
   } else if (res) {
     globalStore.setAlertData(res);
   }
@@ -39,7 +45,9 @@ const saveChanges = async () => {
   saving.value = true;
   const formData = new FormData();
   formData.append('_method', 'patch');
-  formData.append('content', content.value);
+  // Quill leaves '<p><br></p>' for an empty editor; send those as empty
+  formData.append('content_en', stripHtml(contentEn.value) ? contentEn.value : '');
+  formData.append('content_ar', stripHtml(contentAr.value) ? contentAr.value : '');
 
   const res = await useApi().post('admins/settings/privacy', {}, { formData });
   saving.value = false;
@@ -72,17 +80,35 @@ const saveChanges = async () => {
     </div>
 
     <label class="cv-label mb-3">{{ $t('settings.privacy.contentLabel') }}</label>
+    <v-tabs v-model="activeLang" color="primary" class="mb-3">
+      <v-tab value="en">{{ $t('settings.langEn') }}</v-tab>
+      <v-tab value="ar">{{ $t('settings.langAr') }}</v-tab>
+    </v-tabs>
     <div class="editor-card flex-grow-1">
       <v-progress-linear v-if="loading" indeterminate color="#2C85FE" height="2" />
       <ClientOnly>
-        <QuillEditor
-          v-if="!loading"
-          v-model:content="content"
-          content-type="html"
-          :toolbar="[['bold', 'italic', 'underline'], [{ header: 1 }, { header: 2 }], [{ list: 'ordered' }, { list: 'bullet' }], [{ align: [] }], ['link'], ['clean']]"
-          class="editor-container"
-          :placeholder="$t('settings.privacy.placeholder')"
-        />
+        <template v-if="!loading">
+          <div v-show="activeLang === 'en'" class="editor-pane">
+            <QuillEditor
+              v-model:content="contentEn"
+              content-type="html"
+              :toolbar="toolbar"
+              class="editor-container"
+              dir="ltr"
+              :placeholder="$t('settings.privacy.placeholder')"
+            />
+          </div>
+          <div v-show="activeLang === 'ar'" class="editor-pane">
+            <QuillEditor
+              v-model:content="contentAr"
+              content-type="html"
+              :toolbar="toolbar"
+              class="editor-container editor-rtl"
+              dir="rtl"
+              :placeholder="$t('settings.privacy.placeholder')"
+            />
+          </div>
+        </template>
         <template #fallback>
           <div class="d-flex justify-center align-center pa-8" style="color: var(--color-text-sec)">
             {{ $t('common.loading') }}
@@ -133,6 +159,12 @@ const saveChanges = async () => {
   min-height: 480px;
 }
 
+.editor-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .editor-container {
   flex: 1;
 }
@@ -162,7 +194,8 @@ const saveChanges = async () => {
   font-style: normal;
 }
 
-[dir='rtl'] .editor-card :deep(.ql-editor) {
+[dir='rtl'] .editor-card :deep(.ql-editor),
+.editor-rtl :deep(.ql-editor) {
   text-align: right;
 }
 </style>

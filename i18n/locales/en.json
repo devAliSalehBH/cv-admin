@@ -138,12 +138,16 @@
       "addressPlaceholder": "Enter company address",
       "phone": "Phone number",
       "confirmTitle": "Save changes on Contact Us?",
-      "updated": "Contact Us Section has been Updated Successfully"
+      "updated": "Contact Us Section has been Updated Successfully",
+      "addressEn": "Address (English)",
+      "addressAr": "Address (Arabic)"
     },
     "plans": {
       "title": "Pricing & Plans",
       "desc": "Manage subscription plans and pricing"
-    }
+    },
+    "langEn": "English",
+    "langAr": "Arabic"
   },
   "validation": {
     "required": "This field is required",

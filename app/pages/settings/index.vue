@@ -47,7 +47,8 @@ const saving = ref(false);
 const contactFormRef = ref(null);
 const contactForm = reactive({
   email: '',
-  address: '',
+  address_en: '',
+  address_ar: '',
   phone_number: '',
 });
 
@@ -56,7 +57,8 @@ const fetchContact = async () => {
   const res = await useApi().get('admins/settings/contact');
   if (res?.success && res.data) {
     contactForm.email = res.data.email ?? '';
-    contactForm.address = res.data.address ?? '';
+    contactForm.address_en = res.data.address_en ?? '';
+    contactForm.address_ar = res.data.address_ar ?? '';
     contactForm.phone_number = res.data.phone_number ?? '';
   }
   contactLoading.value = false;
@@ -79,7 +81,8 @@ const saveContact = async () => {
   const formData = new FormData();
   formData.append('_method', 'patch');
   formData.append('email', contactForm.email.trim());
-  formData.append('address', contactForm.address.trim());
+  formData.append('address_en', contactForm.address_en.trim());
+  formData.append('address_ar', contactForm.address_ar.trim());
   formData.append('phone_number', contactForm.phone_number.trim());
 
   const res = await useApi().post('admins/settings/contact', {}, { formData });
@@ -149,12 +152,26 @@ const saveContact = async () => {
           />
         </div>
         <div>
-          <label class="cv-label" for="contact-address">{{ $t('settings.contact.address') }}</label>
+          <label class="cv-label" for="contact-address-en">{{ $t('settings.contact.addressEn') }}</label>
           <v-text-field
-            id="contact-address"
-            v-model="contactForm.address"
+            id="contact-address-en"
+            v-model="contactForm.address_en"
             :placeholder="$t('settings.contact.addressPlaceholder')"
             :rules="[rules.required]"
+            dir="ltr"
+            variant="outlined"
+            density="compact"
+            class="cv-input"
+          />
+        </div>
+        <div>
+          <label class="cv-label" for="contact-address-ar">{{ $t('settings.contact.addressAr') }}</label>
+          <v-text-field
+            id="contact-address-ar"
+            v-model="contactForm.address_ar"
+            :placeholder="$t('settings.contact.addressPlaceholder')"
+            :rules="[rules.required]"
+            dir="rtl"
             variant="outlined"
             density="compact"
             class="cv-input"
